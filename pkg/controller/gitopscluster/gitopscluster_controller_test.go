@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
+	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -42,15 +42,15 @@ var (
 		},
 	}
 
-	test1Pl = &clusterv1alpha1.Placement{
+	test1Pl = &clusterv1beta1.Placement{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-placement-1",
 			Namespace: test1Ns.Name,
 		},
-		Spec: clusterv1alpha1.PlacementSpec{},
+		Spec: clusterv1beta1.PlacementSpec{},
 	}
 
-	test1PlDc = &clusterv1alpha1.PlacementDecision{
+	test1PlDc = &clusterv1beta1.PlacementDecision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-placement-decision-1",
 			Namespace: test1Ns.Name,
@@ -60,13 +60,13 @@ var (
 		},
 	}
 
-	placementDecisionStatus = &clusterv1alpha1.PlacementDecisionStatus{
-		Decisions: []clusterv1alpha1.ClusterDecision{
+	placementDecisionStatus = &clusterv1beta1.PlacementDecisionStatus{
+		Decisions: []clusterv1beta1.ClusterDecision{
 			*clusterDecision1,
 		},
 	}
 
-	clusterDecision1 = &clusterv1alpha1.ClusterDecision{
+	clusterDecision1 = &clusterv1beta1.ClusterDecision{
 		ClusterName: "cluster1",
 		Reason:      "OK",
 	}
@@ -78,15 +78,15 @@ var (
 		},
 	}
 
-	test2Pl = &clusterv1alpha1.Placement{
+	test2Pl = &clusterv1beta1.Placement{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-placement-2",
 			Namespace: test2Ns.Name,
 		},
-		Spec: clusterv1alpha1.PlacementSpec{},
+		Spec: clusterv1beta1.PlacementSpec{},
 	}
 
-	test2PlDc = &clusterv1alpha1.PlacementDecision{
+	test2PlDc = &clusterv1beta1.PlacementDecision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-placement-decision-2",
 			Namespace: test2Ns.Name,
@@ -103,15 +103,15 @@ var (
 		},
 	}
 
-	test3Pl = &clusterv1alpha1.Placement{
+	test3Pl = &clusterv1beta1.Placement{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-placement-3",
 			Namespace: test3Ns.Name,
 		},
-		Spec: clusterv1alpha1.PlacementSpec{},
+		Spec: clusterv1beta1.PlacementSpec{},
 	}
 
-	test3PlDc = &clusterv1alpha1.PlacementDecision{
+	test3PlDc = &clusterv1beta1.PlacementDecision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-placement-decision-3",
 			Namespace: test3Ns.Name,
@@ -128,15 +128,15 @@ var (
 		},
 	}
 
-	test4Pl = &clusterv1alpha1.Placement{
+	test4Pl = &clusterv1beta1.Placement{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-placement-4",
 			Namespace: test4Ns.Name,
 		},
-		Spec: clusterv1alpha1.PlacementSpec{},
+		Spec: clusterv1beta1.PlacementSpec{},
 	}
 
-	test4PlDc = &clusterv1alpha1.PlacementDecision{
+	test4PlDc = &clusterv1beta1.PlacementDecision{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-placement-decision-4",
 			Namespace: test4Ns.Name,
@@ -245,7 +245,7 @@ var (
 			},
 			PlacementRef: &corev1.ObjectReference{
 				Kind:       "Placement",
-				APIVersion: "cluster.open-cluster-management.io/v1alpha1",
+				APIVersion: "cluster.open-cluster-management.io/v1beta1",
 				Namespace:  test1Ns.Name,
 				Name:       test1Pl.Name,
 			},
@@ -313,7 +313,7 @@ func TestReconcileCreateSecretInArgo(t *testing.T) {
 	time.Sleep(time.Second * 5)
 
 	// Update placement decision status
-	placementDecision1 := &clusterv1alpha1.PlacementDecision{}
+	placementDecision1 := &clusterv1beta1.PlacementDecision{}
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: test1PlDc.Namespace, Name: test1PlDc.Name},
 		placementDecision1)).NotTo(gomega.HaveOccurred())
@@ -325,7 +325,7 @@ func TestReconcileCreateSecretInArgo(t *testing.T) {
 
 	time.Sleep(time.Second * 5)
 
-	placementDecisionAfterupdate := &clusterv1alpha1.PlacementDecision{}
+	placementDecisionAfterupdate := &clusterv1beta1.PlacementDecision{}
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: placementDecision1.Namespace, Name: placementDecision1.Name},
 		placementDecisionAfterupdate)).NotTo(gomega.HaveOccurred())
@@ -349,7 +349,7 @@ func TestReconcileCreateSecretInArgo(t *testing.T) {
 	goc.Namespace = test1Ns.Name
 	goc.Spec.PlacementRef = &corev1.ObjectReference{
 		Kind:       "Placement",
-		APIVersion: "cluster.open-cluster-management.io/v1alpha1",
+		APIVersion: "cluster.open-cluster-management.io/v1beta1",
 		Name:       test1Pl.Name,
 	}
 	g.Expect(c.Create(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
@@ -400,7 +400,7 @@ func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	// Update placement decision status
-	placementDecision2 := &clusterv1alpha1.PlacementDecision{}
+	placementDecision2 := &clusterv1beta1.PlacementDecision{}
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: test2PlDc.Namespace, Name: test2PlDc.Name},
 		placementDecision2)).NotTo(gomega.HaveOccurred())
@@ -412,7 +412,7 @@ func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	placementDecisionAfterupdate2 := &clusterv1alpha1.PlacementDecision{}
+	placementDecisionAfterupdate2 := &clusterv1beta1.PlacementDecision{}
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: placementDecision2.Namespace, Name: placementDecision2.Name},
 		placementDecisionAfterupdate2)).NotTo(gomega.HaveOccurred())
@@ -433,7 +433,7 @@ func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
 	goc.Namespace = test2Ns.Name
 	goc.Spec.PlacementRef = &corev1.ObjectReference{
 		Kind:       "Placement",
-		APIVersion: "cluster.open-cluster-management.io/v1alpha1",
+		APIVersion: "cluster.open-cluster-management.io/v1beta1",
 		Name:       test2Pl.Name,
 	}
 	g.Expect(c.Create(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
@@ -480,7 +480,7 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	// Update placement decision status
-	placementDecision3 := &clusterv1alpha1.PlacementDecision{}
+	placementDecision3 := &clusterv1beta1.PlacementDecision{}
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: test3PlDc.Namespace, Name: test3PlDc.Name},
 		placementDecision3)).NotTo(gomega.HaveOccurred())
@@ -492,7 +492,7 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	placementDecisionAfterupdate3 := &clusterv1alpha1.PlacementDecision{}
+	placementDecisionAfterupdate3 := &clusterv1beta1.PlacementDecision{}
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: placementDecision3.Namespace, Name: placementDecision3.Name},
 		placementDecisionAfterupdate3)).NotTo(gomega.HaveOccurred())
@@ -521,7 +521,7 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 	goc.Spec.ArgoServer.ArgoNamespace = gitopsServerNamespace1.Name
 	goc.Spec.PlacementRef = &corev1.ObjectReference{
 		Kind:       "Placement",
-		APIVersion: "cluster.open-cluster-management.io/v1alpha1",
+		APIVersion: "cluster.open-cluster-management.io/v1beta1",
 		Name:       test3Pl.Name,
 	}
 	g.Expect(c.Create(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
@@ -633,7 +633,7 @@ func TestReconcileDeleteOrphanSecret(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	// Update placement decision status
-	placementDecision4 := &clusterv1alpha1.PlacementDecision{}
+	placementDecision4 := &clusterv1beta1.PlacementDecision{}
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: test4PlDc.Namespace, Name: test4PlDc.Name},
 		placementDecision4)).NotTo(gomega.HaveOccurred())
@@ -645,7 +645,7 @@ func TestReconcileDeleteOrphanSecret(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	placementDecisionAfterupdate4 := &clusterv1alpha1.PlacementDecision{}
+	placementDecisionAfterupdate4 := &clusterv1beta1.PlacementDecision{}
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: placementDecision4.Namespace,
 			Name: placementDecision4.Name}, placementDecisionAfterupdate4)).NotTo(gomega.HaveOccurred())
@@ -676,7 +676,7 @@ func TestReconcileDeleteOrphanSecret(t *testing.T) {
 	goc.Namespace = test4Ns.Name
 	goc.Spec.PlacementRef = &corev1.ObjectReference{
 		Kind:       "Placement",
-		APIVersion: "cluster.open-cluster-management.io/v1alpha1",
+		APIVersion: "cluster.open-cluster-management.io/v1beta1",
 		Name:       test4Pl.Name,
 	}
 	g.Expect(c.Create(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
