@@ -213,7 +213,7 @@ var (
 	}
 
 	applicationsetRole = types.NamespacedName{
-		Name:      ROLENAME,
+		Name:      "argocd1" + ROLE_SUFFIX,
 		Namespace: "argocd1",
 	}
 
