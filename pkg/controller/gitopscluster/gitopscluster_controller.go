@@ -449,12 +449,11 @@ func getConfigMapDuck(configMapName string, namespace string, apiVersion string,
 	}
 }
 
-const ROLENAME = "openshift-gitops-applicationset-controller-placement"
-const ROLEBINDINGNAME = ROLENAME
+const RoleSuffix = "-applicationset-controller-placement"
 
 func getRoleDuck(namespace string) *rbacv1.Role {
 	return &rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{Name: ROLENAME, Namespace: namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: namespace + RoleSuffix, Namespace: namespace},
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{"apps.open-cluster-management.io", "cluster.open-cluster-management.io"},
@@ -467,16 +466,16 @@ func getRoleDuck(namespace string) *rbacv1.Role {
 
 func getRoleBindingDuck(namespace string) *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{Name: ROLEBINDINGNAME, Namespace: namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: namespace + RoleSuffix, Namespace: namespace},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
-			Name:     ROLENAME,
+			Name:     namespace + RoleSuffix,
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      "openshift-gitops-applicationset-controller",
+				Name:      namespace + "-applicationset-controller",
 				Namespace: namespace,
 			},
 		},
@@ -522,9 +521,9 @@ func (r *ReconcileGitOpsCluster) CreateApplicationSetRbac(namespace string) erro
 		return errors.New("no namespace provided")
 	}
 
-	err := r.Get(context.Background(), types.NamespacedName{Name: ROLENAME, Namespace: namespace}, &rbacv1.Role{})
+	err := r.Get(context.Background(), types.NamespacedName{Name: namespace + RoleSuffix, Namespace: namespace}, &rbacv1.Role{})
 	if k8errors.IsNotFound(err) {
-		klog.Infof("creating role %s, in namespace %s", ROLENAME, namespace)
+		klog.Infof("creating role %s, in namespace %s", namespace+RoleSuffix, namespace)
 
 		err = r.Create(context.Background(), getRoleDuck(namespace))
 		if err != nil {
@@ -532,9 +531,9 @@ func (r *ReconcileGitOpsCluster) CreateApplicationSetRbac(namespace string) erro
 		}
 	}
 
-	err = r.Get(context.Background(), types.NamespacedName{Name: ROLEBINDINGNAME, Namespace: namespace}, &rbacv1.RoleBinding{})
+	err = r.Get(context.Background(), types.NamespacedName{Name: namespace + RoleSuffix, Namespace: namespace}, &rbacv1.RoleBinding{})
 	if k8errors.IsNotFound(err) {
-		klog.Infof("creating roleBinding %s, in namespace %s", ROLEBINDINGNAME, namespace)
+		klog.Infof("creating roleBinding %s, in namespace %s", namespace+RoleSuffix, namespace)
 
 		err = r.Create(context.Background(), getRoleBindingDuck(namespace))
 		if err != nil {
