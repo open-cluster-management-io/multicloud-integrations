@@ -205,6 +205,8 @@ func (r *ReconcileGitOpsCluster) Reconcile(ctx context.Context, request reconcil
 		requeueInterval, err := r.reconcileGitOpsCluster(*instance, orphanGitOpsClusterSecretList)
 
 		if err != nil {
+			klog.Error(err.Error())
+
 			return reconcile.Result{Requeue: true, RequeueAfter: time.Duration(requeueInterval) * time.Minute}, err
 		}
 	}
@@ -265,11 +267,11 @@ func (r *ReconcileGitOpsCluster) reconcileGitOpsCluster(
 		err := r.Client.Status().Update(context.TODO(), instance)
 
 		if err != nil {
-			klog.Errorf("failed to update GitOpsCluster %s status, will try again in 3 minutes: %s", instance.Namespace+"/"+instance.Name, err)
-			return 3, err
+			klog.Errorf("failed to update GitOpsCluster %s status, will try again: %s", instance.Namespace+"/"+instance.Name, err)
+			return 1, err
 		}
 
-		return 0, nil
+		return 1, errors.New("invalid gitops namespace because argo server pod was not found, will try again")
 	}
 
 	// 1a. Add configMaps to be used by ArgoCD ApplicationSets
@@ -464,7 +466,59 @@ func getRoleDuck(namespace string) *rbacv1.Role {
 	}
 }
 
-func getRoleBindingDuck(namespace string) *rbacv1.RoleBinding {
+func (r *ReconcileGitOpsCluster) getAppSetServiceAccountName(namespace string) string {
+	saName := namespace + RoleSuffix // if every attempt fails, use this name
+
+	// First, try to get the applicationSet controller service account by label
+	saList := &v1.ServiceAccountList{}
+
+	listopts := &client.ListOptions{Namespace: namespace}
+
+	saSelector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"app.kubernetes.io/part-of": "argocd-applicationset",
+		},
+	}
+
+	saSelectionLabel, err := utils.ConvertLabels(saSelector)
+
+	if err != nil {
+		klog.Error("Failed to convert managed cluster secret selector, err:", err)
+	} else {
+		listopts.LabelSelector = saSelectionLabel
+	}
+
+	err = r.List(context.TODO(), saList, listopts)
+
+	if err != nil {
+		klog.Error("Failed to get service account list, err:", err) // Just return the default SA name
+
+		return saName
+	}
+
+	if len(saList.Items) == 1 {
+		klog.Info("found the application set controller service account name by label: " + saList.Items[0].Name)
+
+		return saList.Items[0].Name
+	}
+
+	// find the SA name that ends with -applicationset-controller
+	for _, sa := range saList.Items {
+		if strings.HasSuffix(sa.Name, "-applicationset-controller") {
+			klog.Info("found the application set controller service account name from list: " + sa.Name)
+
+			return sa.Name
+		}
+	}
+
+	klog.Warning("could not find application set controller service account name")
+
+	return saName
+}
+
+func (r *ReconcileGitOpsCluster) getRoleBindingDuck(namespace string) *rbacv1.RoleBinding {
+	saName := r.getAppSetServiceAccountName(namespace)
+
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{Name: namespace + RoleSuffix, Namespace: namespace},
 		RoleRef: rbacv1.RoleRef{
@@ -475,7 +529,7 @@ func getRoleBindingDuck(namespace string) *rbacv1.RoleBinding {
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      namespace + "-applicationset-controller",
+				Name:      saName,
 				Namespace: namespace,
 			},
 		},
@@ -535,7 +589,7 @@ func (r *ReconcileGitOpsCluster) CreateApplicationSetRbac(namespace string) erro
 	if k8errors.IsNotFound(err) {
 		klog.Infof("creating roleBinding %s, in namespace %s", namespace+RoleSuffix, namespace)
 
-		err = r.Create(context.Background(), getRoleBindingDuck(namespace))
+		err = r.Create(context.Background(), r.getRoleBindingDuck(namespace))
 		if err != nil {
 			return err
 		}
