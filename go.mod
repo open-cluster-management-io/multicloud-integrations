@@ -1,6 +1,6 @@
 module open-cluster-management.io/multicloud-integrations
 
-go 1.17
+go 1.18
 
 require (
 	github.com/IBM/controller-filtered-cache v0.3.3
