@@ -1,6 +1,6 @@
 service:
   # When updating this, also update the version stored in docker/build-tools/Dockerfile in the multicloudlab/tools repo.
-  golangci-lint-version: 1.18.x # use the fixed version to not introduce new linters unexpectedly
+  golangci-lint-version: 1.46.x # use the fixed version to not introduce new linters unexpectedly
 run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m
   deadline: 20m
@@ -28,19 +28,58 @@ run:
 linters:
   enable-all: true
   disable:
+    - bodyclose
+    - contextcheck
+    - cyclop
     - depguard
     - dupl
+    - forbidigo
+    - funlen
+    - errchkjson
+    - exhaustive
+    - exhaustruct
+    - exhaustivestruct
+    - forcetypeassert
+    - gci
     - gochecknoglobals
     - gochecknoinits
+    - gocognit
     - goconst
+    - gocritic
     - gocyclo
+    - godot
+    - goerr113
+    - gofumpt
+    - golint
     - gomnd
+    - gomoddirectives
     - gosec
+    - ifshort
+    - ineffassign
+    - interfacer
+    - ireturn
+    - maintidx 
+    - maligned
     - nakedret
+    - nestif
+    - nilnil
+    - nlreturn
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - paralleltest
     - prealloc
+    - predeclared
+    - staticcheck
     - scopelint
-    - funlen
-    - bodyclose
+    - tagliatelle
+    - tenv
+    - testpackage
+    - typecheck
+    - thelper
+    - varnamelen
+    - wastedassign
+    - wrapcheck
   fast: false
 
 linters-settings:

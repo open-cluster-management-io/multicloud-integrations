@@ -52,12 +52,7 @@ lint:
 
 .PHONY: lint-all
 
-lint-all: lint-yaml lint-go
-
-.PHONY: lint-yaml
-
-lint-yaml:
-	@${FINDFILES} \( -name '*.yml' -o -name '*.yaml' \) -print0 | ${XARGS} grep -L -e "{{" | ${CLEANXARGS} yamllint -c ./common/config/.yamllint.yml
+lint-all: lint-go
 
 .PHONY: lint-go
 
