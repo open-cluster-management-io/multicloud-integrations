@@ -184,7 +184,7 @@ func (r *ReconcileGitOpsCluster) Reconcile(ctx context.Context, request reconcil
 	gitOpsClusters, err := r.GetAllGitOpsClusters()
 
 	if err != nil {
-		return reconcile.Result{Requeue: false}, err
+		return reconcile.Result{Requeue: false}, nil
 	}
 
 	// For any watched resource change, process all GitOpsCluster CRs to create new secrets or update existing secrets.
