@@ -30,6 +30,11 @@ CLEANXARGS = xargs ${XARGS_FLAGS}
 IMG ?= $(shell cat COMPONENT_NAME 2> /dev/null)
 export GOPACKAGES   = $(shell go list ./... | grep -v /manager | grep -v /bindata  | grep -v /vendor | grep -v /internal | grep -v /build | grep -v /test )
 
+BASE_DIR := $(shell basename $(PWD))
+
+# Controller runtime need use this variable as tmp cache dir. if not set, ut will fail in prow
+export XDG_CACHE_HOME ?= $(BASE_DIR)/.cache
+
 TEST_TMP :=/tmp
 export KUBEBUILDER_ASSETS ?=$(TEST_TMP)/kubebuilder/bin
 K8S_VERSION ?=1.19.2
