@@ -46,7 +46,6 @@ make test
 Make sure your code build passed.
 
 ```shell
-export BUILD_LOCALLY=1
 make
 ```
 

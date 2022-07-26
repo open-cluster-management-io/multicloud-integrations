@@ -52,12 +52,11 @@ build-images: build
 
 .PHONY: lint
 
-lint:
-	@build/run-code-lint.sh
+lint: lint-all
 
 .PHONY: lint-all
 
-lint-all: lint-go
+lint-all:lint-go
 
 .PHONY: lint-go
 

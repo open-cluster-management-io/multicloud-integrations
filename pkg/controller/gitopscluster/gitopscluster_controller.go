@@ -458,8 +458,13 @@ func getRoleDuck(namespace string) *rbacv1.Role {
 		ObjectMeta: metav1.ObjectMeta{Name: namespace + RoleSuffix, Namespace: namespace},
 		Rules: []rbacv1.PolicyRule{
 			{
-				APIGroups: []string{"apps.open-cluster-management.io", "cluster.open-cluster-management.io"},
-				Resources: []string{"placementrules", "placementdecisions"},
+				APIGroups: []string{"apps.open-cluster-management.io"},
+				Resources: []string{"placementrules"},
+				Verbs:     []string{"list"},
+			},
+			{
+				APIGroups: []string{"cluster.open-cluster-management.io"},
+				Resources: []string{"placementdecisions"},
 				Verbs:     []string{"list"},
 			},
 		},
@@ -546,7 +551,6 @@ func (r *ReconcileGitOpsCluster) CreateApplicationSetConfigMaps(namespace string
 	// Create two configMaps, one for placementrules.apps and placementdecisions.cluster
 	maps := []v1.ConfigMap{
 		getConfigMapDuck(configMapNameOld, namespace, "apps.open-cluster-management.io/v1", "placementrules"),
-		getConfigMapDuck(configMapNameNew, namespace, "cluster.open-cluster-management.io/v1alpha1", "placementdecisions"),
 		getConfigMapDuck(configMapNameNew, namespace, "cluster.open-cluster-management.io/v1beta1", "placementdecisions"),
 	}
 
