@@ -50,14 +50,6 @@ func GetFnName() string {
 	return fnName
 }
 
-// EnterFnString - called when enter a function
-func EnterFnString() string {
-	return ""
-}
-
-// ExitFuString - called when exiting a function
-func ExitFuString(s string) {}
-
 // EventRecorder - record kubernetes event
 type EventRecorder struct {
 	record.EventRecorder
