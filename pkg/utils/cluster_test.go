@@ -42,4 +42,7 @@ func TestBase64String(t *testing.T) {
 	decoded, err := Base64StringDecode(myString)
 	g.Expect(decoded).To(gomega.Equal(string(myDecodedString)))
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	_, err = Base64StringDecode("http://")
+	g.Expect(err).To(gomega.HaveOccurred())
 }
