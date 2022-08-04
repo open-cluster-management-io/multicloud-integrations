@@ -2,11 +2,14 @@ package utils
 
 import (
 	"testing"
+	"time"
 
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	spokeClusterV1 "open-cluster-management.io/api/cluster/v1"
+	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
@@ -100,6 +103,50 @@ var (
 			},
 		},
 	}
+
+	newGitOpsCluster = &gitopsclusterV1beta1.GitOpsCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gitops-cluster",
+		},
+		Spec: gitopsclusterV1beta1.GitOpsClusterSpec{
+			PlacementRef: &v1.ObjectReference{Name: "new-placement"},
+		},
+	}
+
+	oldGitOpsCluster = &gitopsclusterV1beta1.GitOpsCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gitops-cluster",
+		},
+		Spec: gitopsclusterV1beta1.GitOpsClusterSpec{
+			PlacementRef: &v1.ObjectReference{Name: "old-placement"},
+		},
+	}
+
+	newPlacementDecision = &clusterv1beta1.PlacementDecision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "placement-decision",
+		},
+		Status: clusterv1beta1.PlacementDecisionStatus{
+			Decisions: []clusterv1beta1.ClusterDecision{
+				{
+					ClusterName: "cluster1",
+				},
+			},
+		},
+	}
+
+	oldPlacementDecision = &clusterv1beta1.PlacementDecision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "placement-decision",
+		},
+		Status: clusterv1beta1.PlacementDecisionStatus{
+			Decisions: []clusterv1beta1.ClusterDecision{
+				{
+					ClusterName: "cluster2",
+				},
+			},
+		},
+	}
 )
 
 func TestPredicate(t *testing.T) {
@@ -113,6 +160,32 @@ func TestPredicate(t *testing.T) {
 		ObjectNew: newCluster,
 	}
 	ret := instance.Update(updateEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	updateEvt = event.UpdateEvent{
+		ObjectOld: oldCluster,
+		ObjectNew: oldCluster,
+	}
+	ret = instance.Update(updateEvt)
+	g.Expect(ret).To(gomega.Equal(false))
+
+	newCluster.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+	updateEvt = event.UpdateEvent{
+		ObjectOld: oldCluster,
+		ObjectNew: newCluster,
+	}
+	ret = instance.Update(updateEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	newCluster.DeletionTimestamp = nil
+	newCluster.Labels = map[string]string{
+		"env": "test",
+	}
+	updateEvt = event.UpdateEvent{
+		ObjectOld: oldCluster,
+		ObjectNew: newCluster,
+	}
+	ret = instance.Update(updateEvt)
 	g.Expect(ret).To(gomega.Equal(true))
 
 	// Test AcmClusterSecretPredicateFunc
@@ -136,6 +209,20 @@ func TestPredicate(t *testing.T) {
 		Object: newSecret,
 	}
 	ret = instance.Delete(delEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	createEvt = event.CreateEvent{
+		Object: newSecret,
+	}
+	ret = instance.Create(createEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	updateEvt = event.UpdateEvent{
+		ObjectOld: newSecret,
+		ObjectNew: oldSecret,
+	}
+
+	ret = instance.Update(updateEvt)
 	g.Expect(ret).To(gomega.Equal(true))
 
 	// Test ArgocdClusterSecretPredicateFunc
@@ -183,4 +270,133 @@ func TestPredicate(t *testing.T) {
 	}
 	ret = instance.Delete(delEvt)
 	g.Expect(ret).To(gomega.Equal(true))
+
+	// Test GitOpsClusterPredicateFunc
+	instance = GitOpsClusterPredicateFunc
+
+	createEvt = event.CreateEvent{
+		Object: oldGitOpsCluster,
+	}
+	ret = instance.Create(createEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	updateEvt = event.UpdateEvent{
+		ObjectOld: oldGitOpsCluster,
+		ObjectNew: newGitOpsCluster,
+	}
+
+	ret = instance.Update(updateEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	// Test PlacementDecisionPredicateFunc
+	instance = PlacementDecisionPredicateFunc
+
+	createEvt = event.CreateEvent{
+		Object: oldPlacementDecision,
+	}
+	ret = instance.Create(createEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	updateEvt = event.UpdateEvent{
+		ObjectOld: oldPlacementDecision,
+		ObjectNew: newPlacementDecision,
+	}
+
+	ret = instance.Update(updateEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	delEvt = event.DeleteEvent{
+		Object: newPlacementDecision,
+	}
+	ret = instance.Delete(delEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	// Test ManagedClusterSecretPredicateFunc
+	instance = ManagedClusterSecretPredicateFunc
+
+	createEvt = event.CreateEvent{
+		Object: newSecret,
+	}
+	ret = instance.Create(createEvt)
+	g.Expect(ret).To(gomega.Equal(false))
+
+	newSecret.Labels = map[string]string{
+		"not-label": "argo",
+	}
+
+	createEvt = event.CreateEvent{
+		Object: newSecret,
+	}
+	ret = instance.Create(createEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	updateEvt = event.UpdateEvent{
+		ObjectOld: newSecret,
+		ObjectNew: oldSecret,
+	}
+
+	ret = instance.Update(updateEvt)
+	g.Expect(ret).To(gomega.Equal(true))
+
+	delEvt = event.DeleteEvent{
+		Object: oldSecret,
+	}
+	ret = instance.Delete(delEvt)
+	g.Expect(ret).To(gomega.Equal(false))
+
+	oldSecret.Labels = map[string]string{
+		ACMClusterSecretLabel: "argo",
+	}
+	delEvt = event.DeleteEvent{
+		Object: oldSecret,
+	}
+	ret = instance.Delete(delEvt)
+	g.Expect(ret).To(gomega.Equal(false))
+
+	// Test AcmClusterSecretPredicateFunc
+	instance = AcmClusterSecretPredicateFunc
+
+	newSecret.Labels = nil
+
+	createEvt = event.CreateEvent{
+		Object: newSecret,
+	}
+	ret = instance.Create(createEvt)
+	g.Expect(ret).To(gomega.Equal(false))
+
+	newSecret.Labels = map[string]string{
+		"apps.open-cluster-management.io/secret-type": "non-acm-cluster",
+	}
+
+	createEvt = event.CreateEvent{
+		Object: newSecret,
+	}
+	ret = instance.Create(createEvt)
+	g.Expect(ret).To(gomega.Equal(false))
+
+	newSecret.Labels = nil
+	oldSecret.Labels = nil
+	updateEvt = event.UpdateEvent{
+		ObjectOld: oldSecret,
+		ObjectNew: newSecret,
+	}
+
+	ret = instance.Update(updateEvt)
+	g.Expect(ret).To(gomega.Equal(false))
+
+	delEvt = event.DeleteEvent{
+		Object: newSecret,
+	}
+	ret = instance.Delete(delEvt)
+	g.Expect(ret).To(gomega.Equal(false))
+
+	newSecret.Labels = map[string]string{
+		"apps.open-cluster-management.io/secret-type": "non-acm-cluster",
+	}
+
+	delEvt = event.DeleteEvent{
+		Object: newSecret,
+	}
+	ret = instance.Delete(delEvt)
+	g.Expect(ret).To(gomega.Equal(false))
 }
