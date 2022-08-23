@@ -20,11 +20,17 @@ import (
 
 // GitOpsClusterCMDOptions for command line flag parsing
 type GitOpsClusterCMDOptions struct {
-	MetricsAddr string
+	MetricsAddr          string
+	LeaseDurationSeconds int
+	RenewDeadlineSeconds int
+	RetryPeriodSeconds   int
 }
 
 var options = GitOpsClusterCMDOptions{
-	MetricsAddr: "",
+	MetricsAddr:          "",
+	LeaseDurationSeconds: 137,
+	RenewDeadlineSeconds: 107,
+	RetryPeriodSeconds:   26,
 }
 
 // ProcessFlags parses command line parameters into options
@@ -36,5 +42,26 @@ func ProcessFlags() {
 		"metrics-addr",
 		options.MetricsAddr,
 		"The address the metric endpoint binds to.",
+	)
+
+	flag.IntVar(
+		&options.LeaseDurationSeconds,
+		"lease-duration",
+		options.LeaseDurationSeconds,
+		"The lease duration in seconds.",
+	)
+
+	flag.IntVar(
+		&options.RenewDeadlineSeconds,
+		"renew-deadline",
+		options.RenewDeadlineSeconds,
+		"The renew deadline in seconds.",
+	)
+
+	flag.IntVar(
+		&options.RetryPeriodSeconds,
+		"retry-period",
+		options.RetryPeriodSeconds,
+		"The retry period in seconds.",
 	)
 }
