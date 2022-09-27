@@ -54,6 +54,10 @@ spec:
                             type: string
                         type: object
                       type: array
+                    healthStatus:
+                      type: string
+                    syncStatus:
+                      type: string
                   type: object
                 type: array
               resources:

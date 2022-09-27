@@ -58,8 +58,10 @@ type Condition struct {
 
 // ClusterCondition defines all the error/warning conditions in one cluster per application
 type ClusterCondition struct {
-	Cluster    string      `json:"cluster,omitempty"`
-	Conditions []Condition `json:"conditions,omitempty"`
+	Cluster      string      `json:"cluster,omitempty"`
+	SyncStatus   string      `json:"syncStatus,omitempty"`
+	HealthStatus string      `json:"healthStatus,omitempty"`
+	Conditions   []Condition `json:"conditions,omitempty"`
 }
 
 // AppConditions defines all the error/warning conditions in all clusters per application
