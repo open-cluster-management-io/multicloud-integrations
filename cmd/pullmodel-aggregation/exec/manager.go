@@ -22,7 +22,6 @@ import (
 	manifestWorkV1 "open-cluster-management.io/api/work/v1"
 	appsubapi "open-cluster-management.io/multicloud-integrations/pkg/apis"
 	"open-cluster-management.io/multicloud-integrations/pkg/controller"
-
 	appsubutils "open-cluster-management.io/multicloud-integrations/pkg/utils"
 
 	"k8s.io/client-go/rest"
