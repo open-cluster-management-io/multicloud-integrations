@@ -144,7 +144,6 @@ func TestReconcilePullModel(t *testing.T) {
 	g.Expect(c.Get(ctx, types.NamespacedName{Name: "appset-1", Namespace: "appset-ns-1"}, appset)).NotTo(HaveOccurred())
 
 	g.Expect(c.Get(ctx, types.NamespacedName{Name: "appset-2", Namespace: "appset-ns-2"}, appset)).NotTo(HaveOccurred())
-
 }
 
 func TestParseNamespacedName(t *testing.T) {

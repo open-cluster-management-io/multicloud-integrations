@@ -75,6 +75,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	err = c.Create(context.TODO(), &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "appset-ns-2"},
 	})

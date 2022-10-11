@@ -195,15 +195,15 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 	PrintMemUsage("AppSet Map generated.")
 
 	// generate report with just overallstatus
-	r.generateAppSetReport(appSetClusterStatusMap)
+	r.generateAppSetReport(appSetClusterStatusMap, false)
 
 	// generate report again this time with resources and conditions from resource sync controller.
-	r.generateAppSetReportWithResources(appSetClusterStatusMap)
+	r.generateAppSetReport(appSetClusterStatusMap, true)
 
 	return nil
 }
 
-func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus) {
+func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus, loadYAML bool) {
 	for appset := range appSetClusterStatusMap {
 		appsetNs := appset.appset.Namespace
 		appsetName := appset.appset.Name
@@ -229,73 +229,25 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 				continue
 			}
 		}
-
-		newAppSetReport := r.newAppSetReport(appsetNs, appsetName, []appsetreportV1alpha1.ResourceRef{}, appSetClusterConditions, newSummary)
-
-		PrintMemUsage("memory usage when updating MulticlusterApplicationSetReport.")
-
-		//    3. compare the existing one to the new one
-		if !r.compareAppSetReports(existingAppsetReport, newAppSetReport) {
-			//    4. update the appset report only if there are changes
-			existingAppsetReport.SetName(newAppSetReport.GetName())
-			existingAppsetReport.SetNamespace(newAppSetReport.GetNamespace())
-			existingAppsetReport.SetLabels(newAppSetReport.GetLabels())
-
-			existingAppsetReport.Statuses.Resources = newAppSetReport.Statuses.Resources
-
-			existingAppsetReport.Statuses.ClusterConditions = newAppSetReport.Statuses.ClusterConditions
-
-			existingAppsetReport.Statuses.Summary = newAppSetReport.Statuses.Summary
-
-			if err := r.Update(context.TODO(), existingAppsetReport); err != nil {
-				klog.Errorf("Failed to update MulticlusterApplicationSetReport err: %v", err)
-
-				continue
-			}
-
-			klog.V(1).Infof("MulticlusterApplicationSetReport updated, %v/%v", existingAppsetReport.GetNamespace(), existingAppsetReport.GetName())
-		}
-	}
-}
-
-func (r *ReconcilePullModelAggregation) generateAppSetReportWithResources(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus) {
-	for appset := range appSetClusterStatusMap {
-		appsetNs := appset.appset.Namespace
-		appsetName := appset.appset.Name
 
 		// load yaml from Resource Sync Controller
-		appSetCRD, err := loadAppSetCRD(fmt.Sprintf("%.63s", appsetNs+"-"+appsetName) + ".yaml")
-		if err != nil {
-			klog.Warning("Failed to load appSet CRD err: ", err)
+		var newAppSetReport *appsetreportV1alpha1.MulticlusterApplicationSetReport
 
-			// controller may be taking a while in this case just skip trying to update the report.
-			continue
-		}
+		if loadYAML {
+			appSetCRD, err := loadAppSetCRD(fmt.Sprintf("%.63s", appsetNs+"-"+appsetName) + ".yaml")
+			if err != nil {
+				klog.Warning("Failed to load appSet CRD err: ", err)
 
-		newSummary, appSetClusterConditions := r.generateSummary(appSetClusterStatusMap, appset)
-
-		// create/update the applicationset report for this appset
-		klog.V(1).Infof("Updating AppSetReport for appset: %v", appset)
-
-		//    1. create a new applicationseet report and assign it to a variable
-		existingAppsetReport := &appsetreportV1alpha1.MulticlusterApplicationSetReport{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "MulticlusterApplicationSetReport",
-				APIVersion: "apps.open-cluster-management.io/v1alpha1",
-			},
-		}
-
-		//    2. fetch the existing appset report
-		if err := r.Get(context.TODO(), appset.appset, existingAppsetReport); err != nil {
-			if errors.IsNotFound(err) {
-				klog.Errorf("Failed to find appsetReport err: %v", err)
-
+				// controller may be taking a while in this case just skip trying to update the report.
 				continue
 			}
-		}
 
-		newClusterConditions := append(appSetClusterConditions, appSetCRD.ClusterConditions...)
-		newAppSetReport := r.newAppSetReport(appsetNs, appsetName, appSetCRD.Resources, newClusterConditions, newSummary)
+			appSetClusterConditions = append(appSetClusterConditions, appSetCRD.ClusterConditions...)
+
+			newAppSetReport = r.newAppSetReport(appsetNs, appsetName, appSetCRD.Resources, appSetClusterConditions, newSummary)
+		} else {
+			newAppSetReport = r.newAppSetReport(appsetNs, appsetName, []appsetreportV1alpha1.ResourceRef{}, appSetClusterConditions, newSummary)
+		}
 
 		PrintMemUsage("memory usage when updating MulticlusterApplicationSetReport.")
 
