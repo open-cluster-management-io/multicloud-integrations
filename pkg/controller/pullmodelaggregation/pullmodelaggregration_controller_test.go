@@ -32,7 +32,7 @@ var (
 	healthy = "Healthy"
 	synced  = "Synced"
 
-	sampleManifestWork = &v1.ManifestWork{
+	sampleManifestWork1 = &v1.ManifestWork{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "bgd-app",
 			Namespace: "cluster1",
@@ -54,10 +54,33 @@ var (
 		},
 	}
 
-	sampleMulticlusterApplicationSet = &appsetreportV1alpha1.MulticlusterApplicationSetReport{
+	sampleManifestWork2 = &v1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "bgd-app-2",
+			Namespace: "cluster1",
+			Annotations: map[string]string{
+				"hosting-applicationset": "appset-ns-2/appset-2",
+			},
+			Labels: map[string]string{
+				"apps.open-cluster-management.io/multicluster-application-set": "true",
+			},
+		},
+	}
+
+	sampleMulticlusterApplicationSet1 = &appsetreportV1alpha1.MulticlusterApplicationSetReport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "appset-1",
 			Namespace: "appset-ns-1",
+			Labels: map[string]string{
+				"apps.open-cluster-management.io/hosting-applicationset": "appset-ns-1.appset-1",
+			},
+		},
+	}
+
+	sampleMulticlusterApplicationSet2 = &appsetreportV1alpha1.MulticlusterApplicationSetReport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "appset-2",
+			Namespace: "appset-ns-2",
 			Labels: map[string]string{
 				"apps.open-cluster-management.io/hosting-applicationset": "appset-ns-1.appset-1",
 			},
@@ -84,10 +107,12 @@ func TestReconcilePullModel(t *testing.T) {
 		mgrStopped.Wait()
 	}()
 
-	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSet)).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSet1)).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSet2)).NotTo(HaveOccurred())
 
 	// need to create a manifestwork
-	g.Expect(c.Create(ctx, sampleManifestWork)).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleManifestWork1)).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleManifestWork2)).NotTo(HaveOccurred())
 
 	time.Sleep(4 * time.Second)
 
@@ -96,7 +121,7 @@ func TestReconcilePullModel(t *testing.T) {
 	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "cluster1", Name: "bgd-app"}, mw)).NotTo(HaveOccurred())
 
 	// Need to update the status
-	sampleManifestWork.Status = v1.ManifestWorkStatus{
+	mw.Status = v1.ManifestWorkStatus{
 		ResourceStatus: v1.ManifestResourceStatus{
 			Manifests: []v1.ManifestCondition{
 				{Conditions: []metav1.Condition{},
@@ -108,10 +133,17 @@ func TestReconcilePullModel(t *testing.T) {
 			},
 		},
 	}
-	g.Expect(c.Status().Update(ctx, sampleManifestWork)).NotTo(HaveOccurred())
+
+	g.Expect(c.Status().Update(ctx, sampleManifestWork1)).NotTo(HaveOccurred())
+
+	time.Sleep(4 * time.Second)
+	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "cluster1", Name: "bgd-app"}, mw)).NotTo(HaveOccurred())
+	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "cluster1", Name: "bgd-app-2"}, mw)).NotTo(HaveOccurred())
 
 	appset := &appsetreportV1alpha1.MulticlusterApplicationSetReport{}
 	g.Expect(c.Get(ctx, types.NamespacedName{Name: "appset-1", Namespace: "appset-ns-1"}, appset)).NotTo(HaveOccurred())
+
+	g.Expect(c.Get(ctx, types.NamespacedName{Name: "appset-2", Namespace: "appset-ns-2"}, appset)).NotTo(HaveOccurred())
 
 }
 

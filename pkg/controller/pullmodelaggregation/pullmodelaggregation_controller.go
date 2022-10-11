@@ -194,63 +194,35 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 
 	PrintMemUsage("AppSet Map generated.")
 
-	r.createOrUpdateAppSetReport(appSetClusterStatusMap)
+	// generate report with just overallstatus
+	r.generateAppSetReport(appSetClusterStatusMap)
+
+	// generate report again this time with resources and conditions from resource sync controller.
+	r.generateAppSetReportWithResources(appSetClusterStatusMap)
 
 	return nil
 }
 
-func (r *ReconcilePullModelAggregation) createOrUpdateAppSetReport(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus) {
+func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus) {
 	for appset := range appSetClusterStatusMap {
-		var (
-			appSetClusterConditions                                      []appsetreportV1alpha1.ClusterCondition
-			synced, notSynced, healthy, notHealthy, inProgress, clusters int
-		)
+		appsetNs := appset.appset.Namespace
+		appsetName := appset.appset.Name
 
-		for cluster := range appSetClusterStatusMap[appset] {
-			// generate the cluster condition list per this appset
-			appSetClusterConditions = append(appSetClusterConditions, appsetreportV1alpha1.ClusterCondition{
-				Cluster:      cluster.clusterName,
-				SyncStatus:   appSetClusterStatusMap[appset][cluster].SyncStatus,
-				HealthStatus: appSetClusterStatusMap[appset][cluster].HealthStatus,
-			})
+		newSummary, appSetClusterConditions := r.generateSummary(appSetClusterStatusMap, appset)
 
-			// Calculate the summary while we're here.
-			clusters++
-
-			switch appSetClusterStatusMap[appset][cluster].HealthStatus {
-			case "Healthy":
-				healthy++
-			case "Progressing":
-				inProgress++
-				notHealthy++
-			default:
-				notHealthy++
-			}
-
-			switch appSetClusterStatusMap[appset][cluster].SyncStatus {
-			case "Synced":
-				synced++
-			default:
-				notSynced++
-			}
-		}
-
+		// create/update the applicationset report for this appset
 		klog.V(1).Infof("Updating AppSetReport for appset: %v", appset)
 
-		// Fetch the existing MulticlusterApplicationSetReport
+		//    1. create a new applicationseet report and assign it to a variable
 		existingAppsetReport := &appsetreportV1alpha1.MulticlusterApplicationSetReport{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "MulticlusterApplicationSetReport",
 				APIVersion: "apps.open-cluster-management.io/v1alpha1",
 			},
 		}
-		// create/update the applicationset report for this appset
-		//    1. create a new applicationseet report and assign it to a variable
-		//    2. fetch the existing appset report,
-		//    3. compare the existing one to the new one
-		//    4. update the appset report only if there are changes
 
-		if err := r.Get(context.TODO(), appset.appset, existingAppsetReport); err != nil { // this just overwrites what we just did lmao.
+		//    2. fetch the existing appset report
+		if err := r.Get(context.TODO(), appset.appset, existingAppsetReport); err != nil {
 			if errors.IsNotFound(err) {
 				klog.Errorf("Failed to find appsetReport err: %v", err)
 
@@ -258,68 +230,13 @@ func (r *ReconcilePullModelAggregation) createOrUpdateAppSetReport(appSetCluster
 			}
 		}
 
-		if clusters != (synced+notSynced) || clusters != (healthy+notHealthy) {
-			klog.Warning("Invalid number of clusters")
-		}
-
-		newSummary := appsetreportV1alpha1.ReportSummary{
-			Synced:     strconv.Itoa(synced),
-			NotSynced:  strconv.Itoa(notSynced),
-			Healthy:    strconv.Itoa(healthy),
-			NotHealthy: strconv.Itoa(notHealthy),
-			InProgress: strconv.Itoa(inProgress),
-			Clusters:   strconv.Itoa(clusters),
-		}
-		appsetNs := appset.appset.Namespace
-		appsetName := appset.appset.Name
-
-		// load yaml from Resource Sync Controller
-		appSetCRD, err := loadAppSetCRD(fmt.Sprintf("%.63s", appsetNs+"-"+appsetName) + ".yaml")
-		if err != nil {
-			klog.Fatal("Failed to load appSet CRD err: ", err)
-		}
-
-		newClusterConditions := append(appSetClusterConditions, appSetCRD.ClusterConditions...)
-
-		newAppSetReport := r.newAppSetReport(appsetNs, appsetName, appSetCRD.Resources, newClusterConditions, newSummary)
+		newAppSetReport := r.newAppSetReport(appsetNs, appsetName, []appsetreportV1alpha1.ResourceRef{}, appSetClusterConditions, newSummary)
 
 		PrintMemUsage("memory usage when updating MulticlusterApplicationSetReport.")
 
-		isSame := true
-
-		if !equality.Semantic.DeepEqual(existingAppsetReport.GetLabels(), newAppSetReport.GetLabels()) {
-			klog.V(1).Info("Labels not same")
-
-			isSame = false
-		}
-		// need to confirm summary is same (this is going to require some refactoring)
-		if !equality.Semantic.DeepEqual(existingAppsetReport.Statuses.Summary, newAppSetReport.Statuses.Summary) {
-			klog.V(1).Info("Summary not same")
-
-			isSame = false
-		}
-		// sort existing appset resources & clusterConditions by name
-		// sort new appset resources & clusterConditions by name
-
-		sort.Sort(AppSetClusterResourceSorter(existingAppsetReport.Statuses.Resources))
-		sort.Sort(AppSetClusterConditionsSorter(existingAppsetReport.Statuses.ClusterConditions))
-		sort.Sort(AppSetClusterResourceSorter(newAppSetReport.Statuses.Resources))
-		sort.Sort(AppSetClusterConditionsSorter(newAppSetReport.Statuses.ClusterConditions))
-
-		// check equality of resources & cluster conditions
-		if !equality.Semantic.DeepEqual(existingAppsetReport.Statuses.Resources, newAppSetReport.Statuses.Resources) {
-			klog.V(1).Info("Resources not same")
-
-			isSame = false
-		}
-
-		if !equality.Semantic.DeepEqual(existingAppsetReport.Statuses.ClusterConditions, newAppSetReport.Statuses.ClusterConditions) {
-			klog.V(1).Info("ClusterConditions not same")
-
-			isSame = false
-		}
-
-		if !isSame {
+		//    3. compare the existing one to the new one
+		if !r.compareAppSetReports(existingAppsetReport, newAppSetReport) {
+			//    4. update the appset report only if there are changes
 			existingAppsetReport.SetName(newAppSetReport.GetName())
 			existingAppsetReport.SetNamespace(newAppSetReport.GetNamespace())
 			existingAppsetReport.SetLabels(newAppSetReport.GetLabels())
@@ -339,6 +256,121 @@ func (r *ReconcilePullModelAggregation) createOrUpdateAppSetReport(appSetCluster
 			klog.V(1).Infof("MulticlusterApplicationSetReport updated, %v/%v", existingAppsetReport.GetNamespace(), existingAppsetReport.GetName())
 		}
 	}
+}
+
+func (r *ReconcilePullModelAggregation) generateAppSetReportWithResources(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus) {
+	for appset := range appSetClusterStatusMap {
+		appsetNs := appset.appset.Namespace
+		appsetName := appset.appset.Name
+
+		// load yaml from Resource Sync Controller
+		appSetCRD, err := loadAppSetCRD(fmt.Sprintf("%.63s", appsetNs+"-"+appsetName) + ".yaml")
+		if err != nil {
+			klog.Warning("Failed to load appSet CRD err: ", err)
+
+			// controller may be taking a while in this case just skip trying to update the report.
+			continue
+		}
+
+		newSummary, appSetClusterConditions := r.generateSummary(appSetClusterStatusMap, appset)
+
+		// create/update the applicationset report for this appset
+		klog.V(1).Infof("Updating AppSetReport for appset: %v", appset)
+
+		//    1. create a new applicationseet report and assign it to a variable
+		existingAppsetReport := &appsetreportV1alpha1.MulticlusterApplicationSetReport{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "MulticlusterApplicationSetReport",
+				APIVersion: "apps.open-cluster-management.io/v1alpha1",
+			},
+		}
+
+		//    2. fetch the existing appset report
+		if err := r.Get(context.TODO(), appset.appset, existingAppsetReport); err != nil {
+			if errors.IsNotFound(err) {
+				klog.Errorf("Failed to find appsetReport err: %v", err)
+
+				continue
+			}
+		}
+
+		newClusterConditions := append(appSetClusterConditions, appSetCRD.ClusterConditions...)
+		newAppSetReport := r.newAppSetReport(appsetNs, appsetName, appSetCRD.Resources, newClusterConditions, newSummary)
+
+		PrintMemUsage("memory usage when updating MulticlusterApplicationSetReport.")
+
+		//    3. compare the existing one to the new one
+		if !r.compareAppSetReports(existingAppsetReport, newAppSetReport) {
+			//    4. update the appset report only if there are changes
+			existingAppsetReport.SetName(newAppSetReport.GetName())
+			existingAppsetReport.SetNamespace(newAppSetReport.GetNamespace())
+			existingAppsetReport.SetLabels(newAppSetReport.GetLabels())
+
+			existingAppsetReport.Statuses.Resources = newAppSetReport.Statuses.Resources
+
+			existingAppsetReport.Statuses.ClusterConditions = newAppSetReport.Statuses.ClusterConditions
+
+			existingAppsetReport.Statuses.Summary = newAppSetReport.Statuses.Summary
+
+			if err := r.Update(context.TODO(), existingAppsetReport); err != nil {
+				klog.Errorf("Failed to update MulticlusterApplicationSetReport err: %v", err)
+
+				continue
+			}
+
+			klog.V(1).Infof("MulticlusterApplicationSetReport updated, %v/%v", existingAppsetReport.GetNamespace(), existingAppsetReport.GetName())
+		}
+	}
+}
+
+func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus,
+	appset AppSet) (appsetreportV1alpha1.ReportSummary, []appsetreportV1alpha1.ClusterCondition) {
+	var (
+		appSetClusterConditions                                      []appsetreportV1alpha1.ClusterCondition
+		synced, notSynced, healthy, notHealthy, inProgress, clusters int
+	)
+
+	for cluster := range appSetClusterStatusMap[appset] {
+		// generate the cluster condition list per this appset
+		appSetClusterConditions = append(appSetClusterConditions, appsetreportV1alpha1.ClusterCondition{
+			Cluster:      cluster.clusterName,
+			SyncStatus:   appSetClusterStatusMap[appset][cluster].SyncStatus,
+			HealthStatus: appSetClusterStatusMap[appset][cluster].HealthStatus,
+		})
+
+		// Calculate the summary while we're here.
+		clusters++
+
+		switch appSetClusterStatusMap[appset][cluster].HealthStatus {
+		case "Healthy":
+			healthy++
+		case "Progressing":
+			inProgress++
+			notHealthy++
+		default:
+			notHealthy++
+		}
+
+		switch appSetClusterStatusMap[appset][cluster].SyncStatus {
+		case "Synced":
+			synced++
+		default:
+			notSynced++
+		}
+	}
+
+	if clusters != (synced+notSynced) || clusters != (healthy+notHealthy) {
+		klog.Warning("Total number of clusters does not add up")
+	}
+
+	return appsetreportV1alpha1.ReportSummary{
+		Synced:     strconv.Itoa(synced),
+		NotSynced:  strconv.Itoa(notSynced),
+		Healthy:    strconv.Itoa(healthy),
+		NotHealthy: strconv.Itoa(notHealthy),
+		InProgress: strconv.Itoa(inProgress),
+		Clusters:   strconv.Itoa(clusters),
+	}, appSetClusterConditions
 }
 
 func (r *ReconcilePullModelAggregation) newAppSetReport(appsetNs, appsetName string, appsetResources []appsetreportV1alpha1.ResourceRef,
@@ -366,6 +398,44 @@ func (r *ReconcilePullModelAggregation) newAppSetReport(appsetNs, appsetName str
 	return newAppSetReport
 }
 
+func (r *ReconcilePullModelAggregation) compareAppSetReports(report1, report2 *appsetreportV1alpha1.MulticlusterApplicationSetReport) bool {
+	isSame := true
+
+	if !equality.Semantic.DeepEqual(report1.GetLabels(), report2.GetLabels()) {
+		klog.V(1).Info("Labels not same")
+
+		isSame = false
+	}
+
+	if !equality.Semantic.DeepEqual(report1.Statuses.Summary, report2.Statuses.Summary) {
+		klog.V(1).Info("Summary not same")
+
+		isSame = false
+	}
+
+	// sort existing appset resources & clusterConditions by name
+	// sort new appset resources & clusterConditions by name
+	sort.Sort(AppSetClusterResourceSorter(report1.Statuses.Resources))
+	sort.Sort(AppSetClusterConditionsSorter(report1.Statuses.ClusterConditions))
+	sort.Sort(AppSetClusterResourceSorter(report2.Statuses.Resources))
+	sort.Sort(AppSetClusterConditionsSorter(report2.Statuses.ClusterConditions))
+
+	// check equality of resources & cluster conditions
+	if !equality.Semantic.DeepEqual(report1.Statuses.Resources, report2.Statuses.Resources) {
+		klog.V(1).Info("Resources not same")
+
+		isSame = false
+	}
+
+	if !equality.Semantic.DeepEqual(report1.Statuses.ClusterConditions, report2.Statuses.ClusterConditions) {
+		klog.V(1).Info("ClusterConditions not same")
+
+		isSame = false
+	}
+
+	return isSame
+}
+
 func loadAppSetCRD(pathname string) (*appsetreportV1alpha1.AppConditions, error) {
 	var (
 		err     error
@@ -376,14 +446,14 @@ func loadAppSetCRD(pathname string) (*appsetreportV1alpha1.AppConditions, error)
 	crddata, err = ioutil.ReadFile(filepath.Clean(pathname))
 
 	if err != nil {
-		klog.Fatal("Loading appconditions crd ", err.Error())
+		klog.Error("Loading appconditions crd ", err.Error())
 		return nil, err
 	}
 
 	err = yaml.Unmarshal(crddata, &crdobj)
 
 	if err != nil {
-		klog.Fatal("Unmarshal appconditions crd ", err.Error(), "\n", string(crddata))
+		klog.Error("Unmarshal appconditions crd ", err.Error(), "\n", string(crddata))
 		return nil, err
 	}
 
