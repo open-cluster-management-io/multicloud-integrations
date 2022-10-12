@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multicluster-integrations
+  namespace: multicluster-operators
+  labels:
+    name: multicluster-integrations
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: multicluster-integrations
+  template:
+    metadata:
+      labels:
+        name: multicluster-integrations
+    spec:
+      serviceAccountName: multicluster-operators
+      containers:
+      - name: multicluster-integrations-syncresource
+        image: quay.io/stolostron/multicloud-integrations@sha256:97ce9bd16d852a5018c7e36d0639d9b6dcf6356b540afe3d2a6dd058ad0bf2f3
+        command:
+        - /usr/local/bin/gitopscluster
+        - --alsologtostderr
+        env:
+        - name: WATCH_NAMESPACE
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DEPLOYMENT_LABEL
+          value: multicluster-integrations-syncresource
+        - name: OPERATOR_NAME
+          value: multicluster-integrations
+        livenessProbe:
+          exec:
+            command:
+            - ls
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        readinessProbe:
+          exec:
+            command:
+            - ls
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        resources:
+          limits:
+            cpu: 100m
+            memory: 512Mi
+          requests:
+            cpu: 25m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /etc/gitops-resources
+          name: multicluster-integrations-syncresource
+          readOnly: true
+      volumes:
+      - emptyDir: {}
+        name: multicluster-integrations-syncresource 
