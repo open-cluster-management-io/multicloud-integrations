@@ -115,10 +115,11 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 	if err != nil {
 		klog.Errorf("bad requirement: %v", err)
 	}
+
 	appSetSelector := labels.NewSelector()
 	appSetSelector = appSetSelector.Add(*appSetRequirement)
-
 	listopts.LabelSelector = appSetSelector
+
 	err = r.List(context.TODO(), appSetClusterList, listopts) // list all the manifestworks
 	if err != nil {
 		klog.Errorf("Failed to list Argo Application manifestWork CR, err: %v", err)
@@ -236,7 +237,6 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 						continue
 					}
 				}
-
 			}
 		}
 
@@ -244,6 +244,7 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 		var newAppSetReport *appsetreportV1alpha1.MulticlusterApplicationSetReport
 
 		if loadYAML {
+			// /var/appset-resc
 			appSetCRD, err := loadAppSetCRD(fmt.Sprintf("%.63s", appsetNs+"-"+appsetName) + ".yaml")
 			if err != nil {
 				klog.Warning("Failed to load appSet CRD err: ", err)
@@ -375,24 +376,38 @@ func (r *ReconcilePullModelAggregation) compareAppSetReports(report1, report2 *a
 		isSame = false
 	}
 
-	// sort existing appset resources & clusterConditions by name
-	// sort new appset resources & clusterConditions by name
-	sort.Sort(AppSetClusterResourceSorter(report1.Statuses.Resources))
-	sort.Sort(AppSetClusterConditionsSorter(report1.Statuses.ClusterConditions))
-	sort.Sort(AppSetClusterResourceSorter(report2.Statuses.Resources))
-	sort.Sort(AppSetClusterConditionsSorter(report2.Statuses.ClusterConditions))
-
-	// check equality of resources & cluster conditions
-	if !equality.Semantic.DeepEqual(report1.Statuses.Resources, report2.Statuses.Resources) {
+	if len(report1.Statuses.Resources) != len(report2.Statuses.Resources) {
 		klog.V(1).Info("Resources not same")
 
 		isSame = false
+	} else {
+		// sort new appset resources & clusterConditions by name
+		sort.Sort(AppSetClusterResourceSorter(report1.Statuses.Resources))
+		sort.Sort(AppSetClusterResourceSorter(report2.Statuses.Resources))
+
+		// check equality of resources
+		if !equality.Semantic.DeepEqual(report1.Statuses.Resources, report2.Statuses.Resources) {
+			klog.V(1).Info("Resources not same")
+
+			isSame = false
+		}
 	}
 
-	if !equality.Semantic.DeepEqual(report1.Statuses.ClusterConditions, report2.Statuses.ClusterConditions) {
+	if len(report1.Statuses.ClusterConditions) != len(report2.Statuses.ClusterConditions) {
 		klog.V(1).Info("ClusterConditions not same")
 
 		isSame = false
+	} else {
+		// sort existing appset resources & clusterConditions by name
+		sort.Sort(AppSetClusterConditionsSorter(report1.Statuses.ClusterConditions))
+		sort.Sort(AppSetClusterConditionsSorter(report2.Statuses.ClusterConditions))
+
+		// check equality of clusterConditions
+		if !equality.Semantic.DeepEqual(report1.Statuses.ClusterConditions, report2.Statuses.ClusterConditions) {
+			klog.V(1).Info("ClusterConditions not same")
+
+			isSame = false
+		}
 	}
 
 	return isSame
