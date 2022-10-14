@@ -1,0 +1,18 @@
+resources:
+- apiVersion: v1
+  kind: Service
+  name: redis-master2
+  namespace: playback-ns-2
+- apiVersion: apps/v1
+  kind: Deployment
+  name: redis-master2
+  namespace: playback-ns-2
+clusterConditions:
+- cluster: cluster1
+  conditions:
+  - type: SyncError
+    message: "error message 1"
+- cluster: cluster-3
+  conditions:
+  - type: SyncError
+    message: "error message 3"
