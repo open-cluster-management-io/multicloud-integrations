@@ -99,7 +99,7 @@ func RunManager() {
 	}
 
 	// Setup all Controllers
-	if err := controller.AddPullModelAggregationToManager(mgr, options.SyncInterval); err != nil {
+	if err := controller.AddPullModelAggregationToManager(mgr, options.SyncInterval, options.AppSetResourceDir); err != nil {
 		klog.Error(err, "")
 		os.Exit(1)
 	}

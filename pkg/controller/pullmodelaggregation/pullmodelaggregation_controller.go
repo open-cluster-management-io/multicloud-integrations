@@ -44,7 +44,8 @@ import (
 // ReconcilePullModelAggregation reconciles a MulticlusterApplicationSet object.
 type ReconcilePullModelAggregation struct {
 	client.Client
-	Interval int
+	Interval    int
+	ResourceDir string
 }
 
 // Keys for the appSetClusterStatusMap
@@ -76,10 +77,11 @@ func (a AppSetClusterConditionsSorter) Len() int           { return len(a) }
 func (a AppSetClusterConditionsSorter) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a AppSetClusterConditionsSorter) Less(i, j int) bool { return a[i].Cluster < a[j].Cluster }
 
-func Add(mgr manager.Manager, interval int) error {
+func Add(mgr manager.Manager, interval int, resourceDir string) error {
 	dsRS := &ReconcilePullModelAggregation{
-		Client:   mgr.GetClient(),
-		Interval: interval,
+		Client:      mgr.GetClient(),
+		Interval:    interval,
+		ResourceDir: resourceDir,
 	}
 
 	return mgr.Add(dsRS)
@@ -244,8 +246,8 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 		var newAppSetReport *appsetreportV1alpha1.MulticlusterApplicationSetReport
 
 		if loadYAML {
-			// /var/appset-resc
-			appSetCRD, err := loadAppSetCRD(fmt.Sprintf("%.63s", appsetNs+"-"+appsetName) + ".yaml")
+			reportName := filepath.Join(r.ResourceDir, fmt.Sprintf("%.63s", appsetNs+"-"+appsetName)+".yaml")
+			appSetCRD, err := loadAppSetCRD(reportName)
 			if err != nil {
 				klog.Warning("Failed to load appSet CRD err: ", err)
 

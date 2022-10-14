@@ -22,6 +22,7 @@ import (
 type PullModelAggregationCMDOptions struct {
 	MetricsAddr                        string
 	KubeConfig                         string
+	AppSetResourceDir                  string
 	SyncInterval                       int
 	LeaderElectionLeaseDurationSeconds int
 	RenewDeadlineSeconds               int
@@ -31,6 +32,7 @@ type PullModelAggregationCMDOptions struct {
 var options = PullModelAggregationCMDOptions{
 	MetricsAddr:                        "",
 	KubeConfig:                         "",
+	AppSetResourceDir:                  "/var/appset-resc",
 	SyncInterval:                       10,
 	LeaderElectionLeaseDurationSeconds: 137,
 	RenewDeadlineSeconds:               107,
@@ -53,6 +55,13 @@ func ProcessFlags() {
 		"kubeconfig",
 		options.KubeConfig,
 		"The kube config that points to a external api server.",
+	)
+
+	flag.StringVar(
+		&options.AppSetResourceDir,
+		"appset-resource-dir",
+		options.AppSetResourceDir,
+		"The directory for persisting appset resource files.",
 	)
 
 	flag.IntVar(
