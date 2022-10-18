@@ -17,7 +17,7 @@ package pullmodelaggregation
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -207,8 +207,6 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 		appsetNs := appset.appset.Namespace
 		appsetName := appset.appset.Name
 
-		newSummary, appSetClusterConditions := r.generateSummary(appSetClusterStatusMap, appset)
-
 		// create/update the applicationset report for this appset
 		klog.V(1).Infof("Updating AppSetReport for appset: %v", appset)
 
@@ -248,6 +246,7 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 		if loadYAML {
 			reportName := filepath.Join(r.ResourceDir, fmt.Sprintf("%.63s", appsetNs+"-"+appsetName)+".yaml")
 			appSetCRD, err := loadAppSetCRD(reportName)
+
 			if err != nil {
 				klog.Warning("Failed to load appSet CRD err: ", err)
 
@@ -255,10 +254,10 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 				continue
 			}
 
-			appSetClusterConditions = append(appSetClusterConditions, appSetCRD.ClusterConditions...)
-
+			newSummary, appSetClusterConditions := r.generateSummary(appSetClusterStatusMap, appset, appSetCRD.ClusterConditions)
 			newAppSetReport = r.newAppSetReport(appsetNs, appsetName, appSetCRD.Resources, appSetClusterConditions, newSummary)
 		} else {
+			newSummary, appSetClusterConditions := r.generateSummary(appSetClusterStatusMap, appset, []appsetreportV1alpha1.ClusterCondition{})
 			newAppSetReport = r.newAppSetReport(appsetNs, appsetName, []appsetreportV1alpha1.ResourceRef{}, appSetClusterConditions, newSummary)
 		}
 
@@ -289,7 +288,7 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 }
 
 func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus,
-	appset AppSet) (appsetreportV1alpha1.ReportSummary, []appsetreportV1alpha1.ClusterCondition) {
+	appset AppSet, appSetCRDConditions []appsetreportV1alpha1.ClusterCondition) (appsetreportV1alpha1.ReportSummary, []appsetreportV1alpha1.ClusterCondition) {
 	var (
 		appSetClusterConditions                                      []appsetreportV1alpha1.ClusterCondition
 		synced, notSynced, healthy, notHealthy, inProgress, clusters int
@@ -328,6 +327,47 @@ func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap m
 		klog.Warning("Total number of clusters does not add up")
 	}
 
+	// Need to merge the cluster conditions from the manifestwork & yaml
+	// 1.     sort so they're in order
+	// 2.     combine each condition into a single list
+	// 3. 	  loop through list, adding entries to a map
+	// 4. 	  upon a condition that already exists, add remaining info to entry
+	//     4a.	  doesn't exist in map, add cluster condition as is
+	//     4b.    cluster does exist in map, add missing information
+	// 5. 	  loop through map, grabbing the entire clustercondition entry
+
+	sort.Sort(AppSetClusterConditionsSorter(appSetClusterConditions))
+	sort.Sort(AppSetClusterConditionsSorter(appSetCRDConditions))
+
+	combinedList := append(appSetClusterConditions, appSetCRDConditions...)
+	dict := make(map[string]appsetreportV1alpha1.ClusterCondition)
+	res := make([]appsetreportV1alpha1.ClusterCondition, 0)
+
+	for _, condition := range combinedList {
+		if _, ok := dict[condition.Cluster]; ok {
+			v := dict[condition.Cluster]
+			if condition.HealthStatus != "" {
+				v.HealthStatus = condition.HealthStatus
+			}
+
+			if condition.SyncStatus != "" {
+				v.SyncStatus = condition.SyncStatus
+			}
+
+			if condition.Conditions != nil {
+				v.Conditions = condition.Conditions
+			}
+
+			dict[condition.Cluster] = v
+		} else {
+			dict[condition.Cluster] = condition
+		}
+	}
+
+	for _, condition := range dict {
+		res = append(res, condition)
+	}
+
 	return appsetreportV1alpha1.ReportSummary{
 		Synced:     strconv.Itoa(synced),
 		NotSynced:  strconv.Itoa(notSynced),
@@ -335,7 +375,7 @@ func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap m
 		NotHealthy: strconv.Itoa(notHealthy),
 		InProgress: strconv.Itoa(inProgress),
 		Clusters:   strconv.Itoa(clusters),
-	}, appSetClusterConditions
+	}, res
 }
 
 func (r *ReconcilePullModelAggregation) newAppSetReport(appsetNs, appsetName string, appsetResources []appsetreportV1alpha1.ResourceRef,
@@ -422,7 +462,7 @@ func loadAppSetCRD(pathname string) (*appsetreportV1alpha1.AppConditions, error)
 		crdobj  appsetreportV1alpha1.AppConditions
 	)
 
-	crddata, err = ioutil.ReadFile(filepath.Clean(pathname))
+	crddata, err = os.ReadFile(filepath.Clean(pathname))
 
 	if err != nil {
 		klog.Error("Loading appconditions crd ", err.Error())
