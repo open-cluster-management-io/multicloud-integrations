@@ -12,7 +12,7 @@ clusterConditions:
   conditions:
   - type: SyncError
     message: "error message 1"
-- cluster: cluster-3
+- cluster: cluster3
   conditions:
   - type: SyncError
     message: "error message 3"

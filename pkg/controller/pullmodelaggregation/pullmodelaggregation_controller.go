@@ -204,6 +204,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 
 func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus, loadYAML bool) {
 	for appset := range appSetClusterStatusMap {
+		createAppSetReport := false
 		appsetNs := appset.appset.Namespace
 		appsetName := appset.appset.Name
 
@@ -229,6 +230,8 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 						"apps.open-cluster-management.io/hosting-applicationset": fmt.Sprintf("%.63s", appsetNs+"."+appsetName),
 					},
 				}
+
+				createAppSetReport = true
 
 				if err := r.Create(context.TODO(), existingAppsetReport); err != nil {
 					if errors.IsAlreadyExists(err) {
@@ -264,6 +267,17 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 		PrintMemUsage("memory usage when updating MulticlusterApplicationSetReport.")
 
 		//    3. compare the existing one to the new one
+		// If the appsetReport was recently created need to fetch the new copy.
+		if createAppSetReport {
+			if err := r.Get(context.TODO(), appset.appset, existingAppsetReport); err != nil {
+				if errors.IsNotFound(err) {
+					klog.Errorf("Failed to get the appsetReport, err: %v", err)
+
+					continue
+				}
+			}
+		}
+
 		if !r.compareAppSetReports(existingAppsetReport, newAppSetReport) {
 			//    4. update the appset report only if there are changes
 			existingAppsetReport.SetName(newAppSetReport.GetName())
@@ -328,16 +342,13 @@ func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap m
 	}
 
 	// Need to merge the cluster conditions from the manifestwork & yaml
-	// 1.     sort so they're in order
-	// 2.     combine each condition into a single list
-	// 3. 	  loop through list, adding entries to a map
-	// 4. 	  upon a condition that already exists, add remaining info to entry
-	//     4a.	  doesn't exist in map, add cluster condition as is
-	//     4b.    cluster does exist in map, add missing information
-	// 5. 	  loop through map, grabbing the entire clustercondition entry
-
-	sort.Sort(AppSetClusterConditionsSorter(appSetClusterConditions))
-	sort.Sort(AppSetClusterConditionsSorter(appSetCRDConditions))
+	// 1.     combine each condition into a single list
+	// 2. 	  loop through list, adding entries to a map
+	// 3. 	  upon a condition that already exists, add remaining info to entry
+	//     3a.	  doesn't exist in map, add cluster condition as is
+	//     3b.    cluster does exist in map, add missing information
+	// 4. 	  loop through map, creating a new list grabbing the entire clustercondition entry
+	// 5. 	  sort the new list to be in a natural order.
 
 	combinedList := append(appSetClusterConditions, appSetCRDConditions...)
 	dict := make(map[string]appsetreportV1alpha1.ClusterCondition)
@@ -367,6 +378,9 @@ func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap m
 	for _, condition := range dict {
 		res = append(res, condition)
 	}
+
+	// Sort after list has been created so it's in a natural order
+	sort.Sort(AppSetClusterConditionsSorter(res))
 
 	return appsetreportV1alpha1.ReportSummary{
 		Synced:     strconv.Itoa(synced),

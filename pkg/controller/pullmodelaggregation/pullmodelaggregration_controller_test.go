@@ -22,7 +22,6 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog"
 	v1 "open-cluster-management.io/api/work/v1"
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 
@@ -44,6 +43,35 @@ var (
 				"apps.open-cluster-management.io/application-set": "random-appset-uid",
 			},
 		},
+		// Spec: v1.ManifestWorkSpec{
+		// 	Workload: v1.ManifestsTemplate{Manifests: []v1.Manifest{}},
+		// 	ManifestConfigs: []v1.ManifestConfigOption{
+		// 		{
+		// 			UpdateStrategy: &v1.UpdateStrategy{},
+		// 			ResourceIdentifier: v1.ResourceIdentifier{
+		// 				Resource:  "applications",
+		// 				Group:     "argoproj.io",
+		// 				Name:      "bgd-app",
+		// 				Namespace: "openshift-gitops",
+		// 			},
+		// 			FeedbackRules: []v1.FeedbackRule{
+		// 				{
+		// 					Type: v1.JSONPathsType,
+		// 					JsonPaths: []v1.JsonPath{
+		// 						{
+		// 							Name: "healthStatus",
+		// 							Path: "{.status.health.status}",
+		// 						},
+		// 						{
+		// 							Name: "syncStatus",
+		// 							Path: "{.status.sync.status}",
+		// 						},
+		// 					},
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
 		// Status: v1.ManifestWorkStatus{
 		// 	ResourceStatus: v1.ManifestResourceStatus{
 		// 		Manifests: []v1.ManifestCondition{
@@ -66,6 +94,35 @@ var (
 				"apps.open-cluster-management.io/application-set": "some-random-appset-uid",
 			},
 		},
+		// Spec: v1.ManifestWorkSpec{
+		// 	Workload: v1.ManifestsTemplate{Manifests: []v1.Manifest{}},
+		// 	ManifestConfigs: []v1.ManifestConfigOption{
+		// 		{
+		// 			UpdateStrategy: &v1.UpdateStrategy{},
+		// 			ResourceIdentifier: v1.ResourceIdentifier{
+		// 				Resource:  "applications",
+		// 				Group:     "argoproj.io",
+		// 				Name:      "bgd-app",
+		// 				Namespace: "openshift-gitops",
+		// 			},
+		// 			FeedbackRules: []v1.FeedbackRule{
+		// 				{
+		// 					Type: v1.JSONPathsType,
+		// 					JsonPaths: []v1.JsonPath{
+		// 						{
+		// 							Name: "healthStatus",
+		// 							Path: "{.status.health.status}",
+		// 						},
+		// 						{
+		// 							Name: "syncStatus",
+		// 							Path: "{.status.sync.status}",
+		// 						},
+		// 					},
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
 	}
 
 	sampleManifestWork3 = &v1.ManifestWork{
@@ -79,6 +136,35 @@ var (
 				"apps.open-cluster-management.io/application-set": "another-random-appset-uid",
 			},
 		},
+		// Spec: v1.ManifestWorkSpec{
+		// 	Workload: v1.ManifestsTemplate{Manifests: []v1.Manifest{}},
+		// 	ManifestConfigs: []v1.ManifestConfigOption{
+		// 		{
+		// 			UpdateStrategy: &v1.UpdateStrategy{},
+		// 			ResourceIdentifier: v1.ResourceIdentifier{
+		// 				Resource:  "applications",
+		// 				Group:     "argoproj.io",
+		// 				Name:      "bgd-app",
+		// 				Namespace: "openshift-gitops",
+		// 			},
+		// 			FeedbackRules: []v1.FeedbackRule{
+		// 				{
+		// 					Type: v1.JSONPathsType,
+		// 					JsonPaths: []v1.JsonPath{
+		// 						{
+		// 							Name: "healthStatus",
+		// 							Path: "{.status.health.status}",
+		// 						},
+		// 						{
+		// 							Name: "syncStatus",
+		// 							Path: "{.status.sync.status}",
+		// 						},
+		// 					},
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
 	}
 
 	sampleMulticlusterApplicationSet1 = &appsetreportV1alpha1.MulticlusterApplicationSetReport{
@@ -121,47 +207,105 @@ func TestReconcilePullModel(t *testing.T) {
 		mgrStopped.Wait()
 	}()
 
-	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSet1)).NotTo(HaveOccurred())
-	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSet2)).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSet1.DeepCopy())).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSet2.DeepCopy())).NotTo(HaveOccurred())
 
 	// need to create a manifestwork
-	g.Expect(c.Create(ctx, sampleManifestWork1)).NotTo(HaveOccurred())
-	g.Expect(c.Create(ctx, sampleManifestWork2)).NotTo(HaveOccurred())
-	g.Expect(c.Create(ctx, sampleManifestWork3)).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleManifestWork1.DeepCopy())).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleManifestWork2.DeepCopy())).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, sampleManifestWork3.DeepCopy())).NotTo(HaveOccurred())
 
 	time.Sleep(4 * time.Second)
 
 	// Test 1:
 	mw := &v1.ManifestWork{}
 	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "cluster1", Name: "bgd-app"}, mw)).NotTo(HaveOccurred())
-	klog.Info(mw)
 
+	// Update manifestwork to be healthy & synced.
 	newMw := mw.DeepCopy()
+	newMw.Status = v1.ManifestWorkStatus{
+		ResourceStatus: v1.ManifestResourceStatus{
+			Manifests: []v1.ManifestCondition{
+				{Conditions: []metav1.Condition{},
+					ResourceMeta: v1.ManifestResourceMeta{},
+					StatusFeedbacks: v1.StatusFeedbackResult{Values: []v1.FeedbackValue{
+						{Name: "healthStatus", Value: v1.FieldValue{Type: v1.String, String: &healthy}},
+						{Name: "syncStatus", Value: v1.FieldValue{Type: v1.String, String: &synced}}}},
+				},
+			},
+		},
+	}
 
 	time.Sleep(4 * time.Second)
-	newMw.Status = v1.ManifestWorkStatus{ResourceStatus: v1.ManifestResourceStatus{}}
 	g.Expect(c.Status().Update(ctx, newMw)).NotTo(HaveOccurred())
 	time.Sleep(4 * time.Second)
 
 	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "cluster1", Name: "bgd-app"}, mw)).NotTo(HaveOccurred())
-	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "cluster1", Name: "bgd-app-2"}, mw)).NotTo(HaveOccurred())
-	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "cluster1", Name: "bgd-app-3"}, mw)).NotTo(HaveOccurred())
+	newMw = mw.DeepCopy()
+	g.Expect(newMw.Status.ResourceStatus.Manifests[0].StatusFeedbacks.Values).To(Equal([]v1.FeedbackValue{
+		{Name: "healthStatus", Value: v1.FieldValue{Type: v1.String, String: &healthy}},
+		{Name: "syncStatus", Value: v1.FieldValue{Type: v1.String, String: &synced}}}))
 
 	appset := &appsetreportV1alpha1.MulticlusterApplicationSetReport{}
-	// Manifestwork with no status
 	g.Expect(c.Get(ctx, types.NamespacedName{Name: "appset-1", Namespace: "appset-ns-1"}, appset)).NotTo(HaveOccurred())
 	g.Expect(appset.Statuses.Summary).To(Equal(appsetreportV1alpha1.ReportSummary{
-		Synced:     "0",
-		NotSynced:  "1",
-		Healthy:    "0",
-		NotHealthy: "1",
+		Synced:     "1",
+		NotSynced:  "0",
+		Healthy:    "1",
+		NotHealthy: "0",
 		InProgress: "0",
 		Clusters:   "1",
 	}))
+	g.Expect(appset.Statuses.Resources).To(Equal([]appsetreportV1alpha1.ResourceRef{
+		{
+			APIVersion: "v1",
+			Kind:       "Service",
+			Name:       "redis-master2",
+			Namespace:  "playback-ns-2",
+		},
+		{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+			Name:       "redis-master2",
+			Namespace:  "playback-ns-2",
+		},
+	}))
+	g.Expect(appset.Statuses.ClusterConditions).To(Equal([]appsetreportV1alpha1.ClusterCondition{
+		{
+			Cluster:      "cluster1",
+			SyncStatus:   "Synced",
+			HealthStatus: "Healthy",
+			Conditions:   []appsetreportV1alpha1.Condition{{Type: "SyncError", Message: "error message 1"}},
+		},
+		{
+			Cluster:      "cluster3",
+			SyncStatus:   "",
+			HealthStatus: "",
+			Conditions:   []appsetreportV1alpha1.Condition{{Type: "SyncError", Message: "error message 3"}},
+		},
+	}))
 
 	g.Expect(c.Get(ctx, types.NamespacedName{Name: "appset-2", Namespace: "appset-ns-2"}, appset)).NotTo(HaveOccurred())
+	g.Expect(appset.Statuses.Resources).To(BeNil())
+	g.Expect(appset.Statuses.ClusterConditions).To(Equal([]appsetreportV1alpha1.ClusterCondition{
+		{
+			Cluster:      "cluster1",
+			SyncStatus:   "Unknown",
+			HealthStatus: "Unknown",
+			Conditions:   nil,
+		},
+	}))
 
 	g.Expect(c.Get(ctx, types.NamespacedName{Name: "appset-3", Namespace: "appset-ns-3"}, appset)).NotTo(HaveOccurred())
+	g.Expect(appset.Statuses.Resources).To(BeNil())
+	g.Expect(appset.Statuses.ClusterConditions).To(Equal([]appsetreportV1alpha1.ClusterCondition{
+		{
+			Cluster:      "cluster1",
+			SyncStatus:   "Unknown",
+			HealthStatus: "Unknown",
+			Conditions:   nil,
+		},
+	}))
 }
 
 func TestParseNamespacedName(t *testing.T) {
