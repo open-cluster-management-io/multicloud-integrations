@@ -25,6 +25,7 @@ var AddGitOpsClusterToManagerFuncs []func(manager.Manager) error
 
 // AddPullModelAggregationToManagerFuncs is a list of functions to add all PullModelAggregation Controllers to the Manager
 var AddPullModelAggregationToManagerFuncs []func(manager.Manager, int, string) error
+var AddGitOpsSyncRescToManagerFuncs []func(manager.Manager, int, string) error
 
 // AddToManager adds all Controllers to the Manager
 func AddToManager(m manager.Manager) error {
@@ -51,6 +52,16 @@ func AddGitOpsClusterToManager(m manager.Manager) error {
 func AddPullModelAggregationToManager(m manager.Manager, interval int, resouceDir string) error {
 	for _, f := range AddPullModelAggregationToManagerFuncs {
 		if err := f(m, interval, resouceDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func AddGitOpsSyncRescToManager(m manager.Manager, interval int, resourceDir string) error {
+	for _, f := range AddGitOpsSyncRescToManagerFuncs {
+		if err := f(m, interval, resourceDir); err != nil {
 			return err
 		}
 	}
