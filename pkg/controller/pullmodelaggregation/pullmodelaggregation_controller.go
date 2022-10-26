@@ -146,7 +146,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 	appSetClusterStatusMap := make(map[AppSet]map[Cluster]OverallStatus)
 
 	for _, manifestWork := range appSetClusterList.Items {
-		appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["hosting-applicationset"])
+		appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["apps.open-cluster-management.io/hosting-applicationset"])
 		if appsetNs == "" || appsetName == "" {
 			klog.Warningf("Appset namespace: %v , Appset name: %v", appsetNs, appsetName)
 		}
@@ -159,7 +159,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 	for _, manifestWork := range appSetClusterList.Items {
 		healthStatus, syncStatus := "Unknown", "Unknown"
 
-		appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["hosting-applicationset"])
+		appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["apps.open-cluster-management.io/hosting-applicationset"])
 		if appsetNs == "" && appsetName == "" {
 			klog.Warningf("Appset namespace: %v , Appset name: %v", appsetNs, appsetName)
 		}
@@ -204,7 +204,6 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 
 func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus, loadYAML bool) {
 	for appset := range appSetClusterStatusMap {
-		createAppSetReport := false
 		appsetNs := appset.appset.Namespace
 		appsetName := appset.appset.Name
 
@@ -231,14 +230,10 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 					},
 				}
 
-				createAppSetReport = true
-
 				if err := r.Create(context.TODO(), existingAppsetReport); err != nil {
-					if errors.IsAlreadyExists(err) {
-						klog.Errorf("Failed to create the appsetReport, err: %v", err)
+					klog.Errorf("Failed to create the appsetReport, err: %v", err)
 
-						continue
-					}
+					continue
 				}
 			}
 		}
@@ -266,18 +261,7 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 
 		PrintMemUsage("memory usage when updating MulticlusterApplicationSetReport.")
 
-		//    3. compare the existing one to the new one
-		// If the appsetReport was recently created need to fetch the new copy.
-		if createAppSetReport {
-			if err := r.Get(context.TODO(), appset.appset, existingAppsetReport); err != nil {
-				if errors.IsNotFound(err) {
-					klog.Errorf("Failed to get the appsetReport, err: %v", err)
-
-					continue
-				}
-			}
-		}
-
+		//    3. compare the existing report to the new one
 		if !r.compareAppSetReports(existingAppsetReport, newAppSetReport) {
 			//    4. update the appset report only if there are changes
 			existingAppsetReport.SetName(newAppSetReport.GetName())
