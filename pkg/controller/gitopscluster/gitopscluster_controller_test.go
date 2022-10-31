@@ -17,6 +17,7 @@ package gitopscluster
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -159,6 +160,12 @@ var (
 		},
 	}
 
+	managedClusterNamespace10 = &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster10",
+		},
+	}
+
 	argocdServerNamespace1 = &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "argocd1",
@@ -189,6 +196,25 @@ var (
 			"name":   "cluster1",
 			"server": "https://api.cluster1.com:6443",
 			"config": "test-bearer-token-1",
+		},
+	}
+
+	managedClusterSecret10 = &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster10-cluster-secret",
+			Namespace: "cluster10",
+			Labels: map[string]string{
+				"apps.open-cluster-management.io/secret-type": "acm-cluster",
+				"dummy-label": "true",
+			},
+			Annotations: map[string]string{
+				"dummy-annotation": "true",
+			},
+		},
+		StringData: map[string]string{
+			"name":   "cluster10",
+			"server": "https://api.cluster10.com:6443",
+			"config": "test-bearer-token-10",
 		},
 	}
 
@@ -658,6 +684,11 @@ func TestReconcileDeleteOrphanSecret(t *testing.T) {
 
 	defer c.Delete(context.TODO(), managedClusterSecret1)
 
+	c.Create(context.TODO(), managedClusterNamespace10)
+	g.Expect(c.Create(context.TODO(), managedClusterSecret10.DeepCopy())).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), managedClusterSecret10)
+
 	// Create Argo namespace
 	c.Create(context.TODO(), argocdServerNamespace1)
 	g.Expect(c.Create(context.TODO(), argoService.DeepCopy())).NotTo(gomega.HaveOccurred())
@@ -685,6 +716,21 @@ func TestReconcileDeleteOrphanSecret(t *testing.T) {
 
 	// Test that the orphan managed cluster's secret is deleted from the Argo namespace
 	g.Expect(checkOrphanSecretDeleted(c, gitOpsClusterSecret2Key)).To(gomega.BeTrue())
+
+	mySecret := &corev1.Secret{}
+	c.Get(context.TODO(), types.NamespacedName{Name: "cluster10-cluster-secret", Namespace: "cluster10"}, mySecret)
+	g.Expect(mySecret.Annotations).To(gomega.Equal(map[string]string{
+		"dummy-annotation": "true",
+	}))
+	g.Expect(mySecret.Labels).To(gomega.Equal(map[string]string{
+		"apps.open-cluster-management.io/secret-type": "acm-cluster",
+		"dummy-label": "true",
+	}))
+	g.Expect(mySecret.Data).To(gomega.Equal(map[string][]byte{
+		"name":   []byte("cluster10"),
+		"server": []byte("https://api.cluster10.com:6443"),
+		"config": []byte("test-bearer-token-10"),
+	}))
 }
 
 func checkOrphanSecretDeleted(c client.Client, expectedSecretKey types.NamespacedName) bool {
@@ -705,5 +751,145 @@ func checkOrphanSecretDeleted(c client.Client, expectedSecretKey types.Namespace
 		time.Sleep(time.Second * 3)
 
 		timeout += 3
+	}
+}
+
+func TestUnionSecretData(t *testing.T) {
+	type args struct {
+		newSecret      *corev1.Secret
+		existingSecret *corev1.Secret
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want *corev1.Secret
+	}{
+		{
+			name: "empty secrets",
+			args: args{newSecret: &corev1.Secret{}, existingSecret: &corev1.Secret{}},
+			want: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+				StringData: map[string]string{}},
+		},
+		{
+			name: "no changes in secret",
+			args: args{
+				newSecret: &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cluster1-cluster-secret",
+						Namespace: "cluster1",
+						Labels: map[string]string{
+							"argocd.argoproj.io/secret-type":              "cluster",
+							"apps.open-cluster-management.io/acm-cluster": "true"},
+					},
+					StringData: map[string]string{
+						"name":   "cluster1",
+						"server": "https://api.cluster1.com:6443",
+						"config": "test-bearer-token-1",
+					},
+				},
+				existingSecret: &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cluster1-cluster-secret",
+						Namespace: "cluster1",
+						Labels: map[string]string{
+							"argocd.argoproj.io/secret-type":              "cluster",
+							"apps.open-cluster-management.io/acm-cluster": "true",
+						},
+					},
+					Data: map[string][]byte{
+						"name":   []byte("cluster1"),
+						"server": []byte("https://api.cluster1.com:6443"),
+						"config": []byte("test-bearer-token-1"),
+					},
+				},
+			},
+			want: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster1-cluster-secret",
+					Namespace: "cluster1",
+					Labels: map[string]string{
+						"argocd.argoproj.io/secret-type":              "cluster",
+						"apps.open-cluster-management.io/acm-cluster": "true"},
+					Annotations: map[string]string{},
+				},
+				StringData: map[string]string{
+					"name":   "cluster1",
+					"server": "https://api.cluster1.com:6443",
+					"config": "test-bearer-token-1",
+				},
+			},
+		},
+		{
+			name: "union labels, annotations, and data",
+			args: args{
+				newSecret: &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cluster1-cluster-secret",
+						Namespace: "cluster1",
+						Labels: map[string]string{
+							"argocd.argoproj.io/secret-type":              "cluster",
+							"apps.open-cluster-management.io/acm-cluster": "true",
+						},
+					},
+					StringData: map[string]string{
+						"name":   "cluster1",
+						"server": "https://api.cluster1.com:6443",
+						"config": "test-bearer-token-1",
+					},
+				},
+				existingSecret: &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cluster1-cluster-secret",
+						Namespace: "cluster1",
+						Labels: map[string]string{
+							"argocd.argoproj.io/secret-type": "cluster",
+							"test-label-copy-over":           "true",
+						},
+						Annotations: map[string]string{
+							"test-annotation-copy":                             "true",
+							"kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"cluster.open-cluster-management.io/v1beta1\"",
+						},
+					},
+					Data: map[string][]byte{
+						"name":       []byte("cluster1"),
+						"server":     []byte("https://api.cluster1.com:6443"),
+						"config":     []byte("test-bearer-token-1"),
+						"dummy-data": []byte("test-dummy-data"),
+					},
+				},
+			},
+			want: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster1-cluster-secret",
+					Namespace: "cluster1",
+					Labels: map[string]string{
+						"argocd.argoproj.io/secret-type":              "cluster",
+						"apps.open-cluster-management.io/acm-cluster": "true",
+						"test-label-copy-over":                        "true",
+					},
+					Annotations: map[string]string{
+						"test-annotation-copy": "true",
+					},
+				},
+				StringData: map[string]string{
+					"name":       "cluster1",
+					"server":     "https://api.cluster1.com:6443",
+					"config":     "test-bearer-token-1",
+					"dummy-data": "test-dummy-data",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := unionSecretData(tt.args.newSecret, tt.args.existingSecret); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("unionSecretData() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
