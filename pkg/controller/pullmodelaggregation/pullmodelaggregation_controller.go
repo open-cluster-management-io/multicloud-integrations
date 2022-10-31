@@ -288,17 +288,17 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus,
 	appset AppSet, appSetCRDConditions []appsetreportV1alpha1.ClusterCondition) (appsetreportV1alpha1.ReportSummary, []appsetreportV1alpha1.ClusterCondition) {
 	var (
-		appSetClusterConditions                                      []appsetreportV1alpha1.ClusterCondition
 		synced, notSynced, healthy, notHealthy, inProgress, clusters int
 	)
 
+	appSetClusterConditionsMap := make(map[string]appsetreportV1alpha1.ClusterCondition)
 	for cluster := range appSetClusterStatusMap[appset] {
 		// generate the cluster condition list per this appset
-		appSetClusterConditions = append(appSetClusterConditions, appsetreportV1alpha1.ClusterCondition{
+		appSetClusterConditionsMap[cluster.clusterName] = appsetreportV1alpha1.ClusterCondition{
 			Cluster:      cluster.clusterName,
 			SyncStatus:   appSetClusterStatusMap[appset][cluster].SyncStatus,
 			HealthStatus: appSetClusterStatusMap[appset][cluster].HealthStatus,
-		})
+		}
 
 		// Calculate the summary while we're here.
 		clusters++
@@ -325,41 +325,19 @@ func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap m
 		klog.Warning("Total number of clusters does not add up")
 	}
 
-	// Need to merge the cluster conditions from the manifestwork & yaml
-	// 1.     combine each condition into a single list
-	// 2. 	  loop through list, adding entries to a map
-	// 3. 	  upon a condition that already exists, add remaining info to entry
-	//     3a.	  doesn't exist in map, add cluster condition as is
-	//     3b.    cluster does exist in map, add missing information
-	// 4. 	  loop through map, creating a new list grabbing the entire clustercondition entry
-	// 5. 	  sort the new list to be in a natural order.
-
-	combinedList := append(appSetClusterConditions, appSetCRDConditions...)
-	dict := make(map[string]appsetreportV1alpha1.ClusterCondition)
-	res := make([]appsetreportV1alpha1.ClusterCondition, 0)
-
-	for _, condition := range combinedList {
-		if _, ok := dict[condition.Cluster]; ok {
-			v := dict[condition.Cluster]
-			if condition.HealthStatus != "" {
-				v.HealthStatus = condition.HealthStatus
-			}
-
-			if condition.SyncStatus != "" {
-				v.SyncStatus = condition.SyncStatus
-			}
-
-			if condition.Conditions != nil {
-				v.Conditions = condition.Conditions
-			}
-
-			dict[condition.Cluster] = v
+	// Combine cluster conditions from manifestwork and yaml
+	for _, item := range appSetCRDConditions {
+		if e, ok := appSetClusterConditionsMap[item.Cluster]; ok {
+			e.Conditions = item.Conditions
+			appSetClusterConditionsMap[item.Cluster] = e
 		} else {
-			dict[condition.Cluster] = condition
+			appSetClusterConditionsMap[item.Cluster] = item
 		}
 	}
 
-	for _, condition := range dict {
+	res := make([]appsetreportV1alpha1.ClusterCondition, 0, len(appSetClusterConditionsMap))
+
+	for _, condition := range appSetClusterConditionsMap {
 		res = append(res, condition)
 	}
 
