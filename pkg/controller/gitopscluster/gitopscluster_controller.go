@@ -757,6 +757,8 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 	} else {
 		klog.Infof("updating managed cluster secret in argo namespace: %v/%v", argoNamespace, managedClusterSecret.Name)
 
+		newSecret = unionSecretData(newSecret, existingManagedClusterSecret)
+
 		err := r.Update(context.TODO(), newSecret)
 
 		if err != nil {
@@ -766,4 +768,70 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 	}
 
 	return nil
+}
+
+func unionSecretData(newSecret, existingSecret *v1.Secret) *v1.Secret {
+	// union of labels
+	newLabels := newSecret.GetLabels()
+	existingLabels := existingSecret.GetLabels()
+
+	if newLabels == nil {
+		newLabels = make(map[string]string)
+	}
+
+	if existingLabels == nil {
+		existingLabels = make(map[string]string)
+	}
+
+	for key, val := range existingLabels {
+		if _, ok := newLabels[key]; !ok {
+			newLabels[key] = val
+		}
+	}
+
+	newSecret.SetLabels(newLabels)
+
+	// union of annotations (except for kubectl.kubernetes.io/last-applied-configuration)
+	newAnnotations := newSecret.GetAnnotations()
+	existingAnnotations := existingSecret.GetAnnotations()
+
+	if newAnnotations == nil {
+		newAnnotations = make(map[string]string)
+	}
+
+	if existingAnnotations == nil {
+		existingAnnotations = make(map[string]string)
+	}
+
+	for key, val := range existingAnnotations {
+		if _, ok := newAnnotations[key]; !ok {
+			if key != "kubectl.kubernetes.io/last-applied-configuration" {
+				newAnnotations[key] = val
+			}
+		}
+	}
+
+	newSecret.SetAnnotations(newAnnotations)
+
+	// union of data
+	newData := newSecret.StringData
+	existingData := existingSecret.Data // api never returns stringData as the field is write-only
+
+	if newData == nil {
+		newData = make(map[string]string)
+	}
+
+	if existingData == nil {
+		existingData = make(map[string][]byte)
+	}
+
+	for key, val := range existingData {
+		if _, ok := newData[key]; !ok {
+			newData[key] = string(val[:])
+		}
+	}
+
+	newSecret.StringData = newData
+
+	return newSecret
 }
