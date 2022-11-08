@@ -35,28 +35,40 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	appset1 := make(map[string]interface{})
 	appset1["namespace"] = "test-NS1"
 	appset1["applicationSet"] = "appset1"
+	appset1["apigroup"] = "argoproj.io"
+	appset1["apiversion"] = "v1alpha1"
+	appset1["_uid"] = "cluster1/abc"
+	appset1["conditionSyncError"] = "something's not right"
+	appset1["conditionSharedResourceWarning"] = "I think it crashed"
 
 	appset1Resources1 := make(map[string]string)
-	appset1Resources1["apiVersion"] = "apps/v1"
-	appset1Resources1["kind"] = "Deployment"
-	appset1Resources1["name"] = "appset1-cluster1-deployment"
-	appset1Resources1["namespace"] = "test-NS1"
+	appset1Resources1["SourceUID"] = "cluster1/abc"
+	appset1Resources1["SourceKind"] = "ApplicationSet"
+	appset1Resources1["DestUID"] = "test-NS1/appset1-cluster1-deployment"
+	appset1Resources1["DestKind"] = "apps/v1/Deployment"
+	appset1Resources1["cluster"] = "cluster1"
+
 	appset1Resources2 := make(map[string]string)
-	appset1Resources2["apiVersion"] = "apps/v1"
-	appset1Resources2["kind"] = "Pod"
-	appset1Resources2["name"] = "appset1-cluster1-pod"
-	appset1Resources2["namespace"] = "test-NS1"
-	appset1["resources"] = []map[string]string{appset1Resources1, appset1Resources2}
+	appset1Resources2["SourceUID"] = "cluster1/abc"
+	appset1Resources2["SourceKind"] = "ApplicationSet"
+	appset1Resources2["DestUID"] = "test-NS1/appset1-cluster1-configmap"
+	appset1Resources2["DestKind"] = "/v1/ConfigMap"
+	appset1Resources2["cluster"] = "cluster1"
 
-	appset1Conditions1 := make(map[string]string)
-	appset1Conditions1["type"] = "info"
-	appset1Conditions1["message"] = "something's not right"
-	appset1Conditions2 := make(map[string]string)
-	appset1Conditions2["type"] = "error"
-	appset1Conditions2["message"] = "I think it crashed"
-	appset1["conditions"] = []map[string]string{appset1Conditions1, appset1Conditions2}
+	appset1Resources3 := make(map[string]string)
+	appset1Resources3["SourceUID"] = "cluster1/abc"
+	appset1Resources3["SourceKind"] = "ApplicationSet"
+	appset1Resources3["DestUID"] = "test-NS1/appset1-cluster2-configmap"
+	appset1Resources3["DestKind"] = "/v1/ConfigMap"
+	appset1Resources3["cluster"] = "cluster2"
 
-	err := synResc.createOrUpdateAppSetReport(appReportsMap, appset1, "cluster1")
+	related1 := make(map[string]interface{})
+	related1["kind"] = "ApplicationSet"
+	related1["items"] = []map[string]string{appset1Resources1, appset1Resources2, appset1Resources3}
+	appset1["related"] = []interface{}{related1}
+
+	c1ResourceListMap := getResourceMapList(appset1["related"].([]interface{}), "cluster1")
+	err := synResc.createOrUpdateAppSetReport(appReportsMap, c1ResourceListMap, appset1, "cluster1")
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(appReportsMap["test-NS1-appset1"]).NotTo(gomega.BeNil())
 	g.Expect(appReportsMap["test-NS1-appset1"].GetName()).To(gomega.Equal("test-NS1-appset1"))
@@ -66,7 +78,8 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	g.Expect(len(appReportsMap["test-NS1-appset1"].Statuses.ClusterConditions[0].Conditions)).To(gomega.Equal(2))
 
 	// Add to same appset from cluster2
-	err = synResc.createOrUpdateAppSetReport(appReportsMap, appset1, "cluster2")
+	c2ResourceListMap := getResourceMapList(appset1["related"].([]interface{}), "cluster2")
+	err = synResc.createOrUpdateAppSetReport(appReportsMap, c2ResourceListMap, appset1, "cluster2")
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(len(appReportsMap["test-NS1-appset1"].Statuses.Resources)).To(gomega.Equal(2))
 	g.Expect(len(appReportsMap["test-NS1-appset1"].Statuses.ClusterConditions)).To(gomega.Equal(2))
