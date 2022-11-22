@@ -48,6 +48,12 @@ import (
 	appsetreport "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 )
 
+const (
+	SearchServiceName = "search-search-api"
+	SearchDefaultNs   = "open-cluster-management"
+	AccessToken       = "ACCESS_TOKEN"
+)
+
 type GitOpsSyncResource struct {
 	Client      client.Client
 	Interval    int
@@ -60,11 +66,16 @@ var ExcludeResourceList = []string{"ApplicationSet", "EndpointSlice"}
 // Add creates a new argocd cluster Controller and adds it to the Manager with default RBAC.
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
 func Add(mgr manager.Manager, interval int, resourceDir string) error {
+	token := os.Getenv(AccessToken)
+	if token == "" {
+		token = mgr.GetConfig().BearerToken
+	}
+
 	gitopsSyncResc := &GitOpsSyncResource{
 		Client:      mgr.GetClient(),
 		Interval:    interval,
 		ResourceDir: resourceDir,
-		Token:       mgr.GetConfig().BearerToken,
+		Token:       token,
 	}
 
 	// Create resourceDir if it does not exist
@@ -169,17 +180,22 @@ func getAllManagedClusterNames(c client.Client) ([]clusterv1.ManagedCluster, err
 }
 
 func (r *GitOpsSyncResource) getSearchUrl() (string, error) {
+	searchNs := os.Getenv("POD_NAMESPACE")
+	if searchNs == "" {
+		searchNs = SearchDefaultNs
+	}
+
 	svc := &corev1.Service{}
-	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: "search-search-api", Namespace: "open-cluster-management"}, svc); err != nil {
+	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: SearchServiceName, Namespace: searchNs}, svc); err != nil {
 		return "", err
 	}
 
 	if len(svc.Spec.Ports) == 0 {
-		return "", fmt.Errorf("no ports in service: open-cluster-management/search-search-api")
+		return "", fmt.Errorf("no ports in service: %v/%v", searchNs, SearchServiceName)
 	}
 
 	targetPort := svc.Spec.Ports[0].TargetPort.IntVal
-	return fmt.Sprintf("%v%v%v", "https://search-search-api.open-cluster-management.svc.cluster.local:", targetPort, "/searchapi/graphql"), nil
+	return fmt.Sprintf("https://%v.%v.svc.cluster.local:%v/searchapi/graphql", SearchServiceName, searchNs, targetPort), nil
 }
 
 func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName string) ([]interface{}, []interface{}, error) {
@@ -216,6 +232,7 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 	// Build search body
 	kind := "Application"
 	apigroup := "argoproj.io"
+	limit := int(-1)
 	searchInput := &model.SearchInput{
 		Filters: []*model.SearchFilter{
 			{
@@ -231,6 +248,7 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 				Values:   []*string{&cluster},
 			},
 		},
+		Limit: &limit,
 	}
 
 	if appsetNs != "" && appsetName != "" {
