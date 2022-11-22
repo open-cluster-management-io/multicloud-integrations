@@ -20,15 +20,21 @@ import (
 
 // GitOpsClusterCMDOptions for command line flag parsing
 type GitOpsSyncRescCMDOptions struct {
-	MetricsAddr       string
-	SyncInterval      int
-	AppSetResourceDir string
+	MetricsAddr                        string
+	SyncInterval                       int
+	AppSetResourceDir                  string
+	LeaderElectionLeaseDurationSeconds int
+	RenewDeadlineSeconds               int
+	RetryPeriodSeconds                 int
 }
 
 var options = GitOpsSyncRescCMDOptions{
-	MetricsAddr:       "",
-	SyncInterval:      10,
-	AppSetResourceDir: "/var/appset-resc",
+	MetricsAddr:                        "",
+	SyncInterval:                       10,
+	AppSetResourceDir:                  "/var/appset-resc",
+	LeaderElectionLeaseDurationSeconds: 137,
+	RenewDeadlineSeconds:               107,
+	RetryPeriodSeconds:                 26,
 }
 
 // ProcessFlags parses command line parameters into options
@@ -54,5 +60,26 @@ func ProcessFlags() {
 		"appset-resource-dir",
 		options.AppSetResourceDir,
 		"The directory for persisting appset resource files.",
+	)
+
+	flag.IntVar(
+		&options.LeaderElectionLeaseDurationSeconds,
+		"leader-election-lease-duration",
+		options.LeaderElectionLeaseDurationSeconds,
+		"The leader election lease duration in seconds.",
+	)
+
+	flag.IntVar(
+		&options.RenewDeadlineSeconds,
+		"renew-deadline",
+		options.RenewDeadlineSeconds,
+		"The renew deadline in seconds.",
+	)
+
+	flag.IntVar(
+		&options.RetryPeriodSeconds,
+		"retry-period",
+		options.RetryPeriodSeconds,
+		"The retry period in seconds.",
 	)
 }

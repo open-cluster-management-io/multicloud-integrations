@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: multicluster-integrations
-  namespace: multicluster-operators
+  namespace: open-cluster-management
   labels:
     name: multicluster-integrations
 spec:
@@ -18,10 +18,12 @@ spec:
       serviceAccountName: multicluster-operators
       containers:
       - name: multicluster-integrations-syncresource
-        image: quay.io/stolostron/multicloud-integrations@sha256:97ce9bd16d852a5018c7e36d0639d9b6dcf6356b540afe3d2a6dd058ad0bf2f3
+        image: quay.io/phwu/appsub:latest
+        imagePullPolicy: Always
         command:
-        - /usr/local/bin/gitopscluster
-        - --alsologtostderr
+        - /usr/local/bin/gitopssyncresc
+        - --appset-resource-dir=/etc/gitops-resources
+        - --v=4
         env:
         - name: WATCH_NAMESPACE
         - name: POD_NAME
@@ -58,7 +60,7 @@ spec:
         volumeMounts:
         - mountPath: /etc/gitops-resources
           name: multicluster-integrations-syncresource
-          readOnly: true
+          readOnly: false
       volumes:
       - emptyDir: {}
         name: multicluster-integrations-syncresource 

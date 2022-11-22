@@ -17,13 +17,16 @@ package exec
 import (
 	"fmt"
 	"os"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	"open-cluster-management.io/multicloud-integrations/pkg/apis"
 	"open-cluster-management.io/multicloud-integrations/pkg/controller"
 	"open-cluster-management.io/multicloud-integrations/pkg/utils"
 
+	"github.com/IBM/controller-filtered-cache/filteredcache"
 	routev1 "github.com/openshift/api/route/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
@@ -50,13 +53,27 @@ func RunManager() {
 		klog.Info("LeaderElection disabled as not running in a cluster")
 	}
 
+	// Cache only the managed cluster secrets
+	filteredSecretMap := map[schema.GroupVersionKind]filteredcache.Selector{
+		v1.SchemeGroupVersion.WithKind("Secret"): {
+			LabelSelector: "apps.open-cluster-management.io/cluster-name,argocd.argoproj.io/secret-type==cluster",
+		},
+	}
+
+	leaseDuration := time.Duration(options.LeaderElectionLeaseDurationSeconds) * time.Second
+	renewDeadline := time.Duration(options.RenewDeadlineSeconds) * time.Second
+	retryPeriod := time.Duration(options.RetryPeriodSeconds) * time.Second
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		MetricsBindAddress:         fmt.Sprintf("%s:%d", metricsHost, metricsPort),
-		Port:                       operatorMetricsPort,
-		LeaderElection:             enableLeaderElection,
-		LeaderElectionID:           "multicloud-integrations-gitopssyncresc-leader.open-cluster-management.io",
-		LeaderElectionResourceLock: "configmaps",
+		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		Port:                    operatorMetricsPort,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionID:        "multicloud-operators-gitopssyncresc-leader.open-cluster-management.io",
+		LeaderElectionNamespace: "kube-system",
+		NewCache:                filteredcache.NewFilteredCacheBuilder(filteredSecretMap),
+		LeaseDuration:           &leaseDuration,
+		RenewDeadline:           &renewDeadline,
+		RetryPeriod:             &retryPeriod,
 	})
 
 	if err != nil {
