@@ -45,6 +45,7 @@ KB_TOOLS_ARCHIVE_PATH := $(TEST_TMP)/$(KB_TOOLS_ARCHIVE_NAME)
 build:
 	@common/scripts/gobuild.sh build/_output/bin/gitopscluster ./cmd/gitopscluster
 	@common/scripts/gobuild.sh build/_output/bin/gitopssyncresc ./cmd/gitopssyncresc
+	@common/scripts/gobuild.sh build/_output/bin/pullmodel-aggregation ./cmd/pullmodel-aggregation
 
 local:
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/gitopssyncresc ./cmd/gitopssyncresc

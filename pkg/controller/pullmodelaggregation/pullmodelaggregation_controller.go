@@ -242,7 +242,7 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 		var newAppSetReport *appsetreportV1alpha1.MulticlusterApplicationSetReport
 
 		if loadYAML {
-			reportName := filepath.Join(r.ResourceDir, fmt.Sprintf("%.63s", appsetNs+"-"+appsetName)+".yaml")
+			reportName := filepath.Join(r.ResourceDir, fmt.Sprintf("%.63s", appsetNs+"_"+appsetName)+".yaml")
 			appSetCRD, err := loadAppSetCRD(reportName)
 
 			if err != nil {

@@ -16,6 +16,9 @@ spec:
         name: multicluster-integrations
     spec:
       serviceAccountName: multicluster-operators
+      volumes:
+      - name: multicluster-integrations-syncresource 
+        emptyDir: {}
       containers:
       - name: multicluster-integrations-syncresource
         image: quay.io/phwu/appsub:latest
@@ -61,6 +64,47 @@ spec:
         - mountPath: /etc/gitops-resources
           name: multicluster-integrations-syncresource
           readOnly: false
-      volumes:
-      - emptyDir: {}
-        name: multicluster-integrations-syncresource 
+      - name: multicluster-integrations-aggregation
+        image: quay.io/jmarcant/integration:latest
+        imagePullPolicy: Always
+        command:
+        - /usr/local/bin/pullmodel-aggregation
+        - --appset-resource-dir=/etc/gitops-resources
+        env:
+        - name: WATCH_NAMESPACE
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DEPLOYMENT_LABEL
+          value: multicluster-integrations-aggregation
+        - name: OPERATOR_NAME
+          value: multicluster-integrations
+        livenessProbe:
+          exec:
+            command:
+            - ls
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        readinessProbe:
+          exec:
+            command:
+            - ls
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        resources:
+          limits:
+            cpu: 100m
+            memory: 512Mi
+          requests:
+            cpu: 25m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /etc/gitops-resources
+          name: multicluster-integrations-syncresource
+          readOnly: true
+

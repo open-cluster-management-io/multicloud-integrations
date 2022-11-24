@@ -16,6 +16,7 @@ ENV OPERATOR=/usr/local/bin/multicloud-integrations \
 # install operator binary
 COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/gitopscluster /usr/local/bin/gitopscluster
 COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/gitopssyncresc /usr/local/bin/gitopssyncresc
+COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/pullmodel-aggregation /usr/local/bin/pullmodel-aggregation
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
