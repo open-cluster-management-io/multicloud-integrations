@@ -39,8 +39,9 @@ type GitOpsCluster struct {
 
 // GitOpsClusterSpec defines the desired state of GitOpsCluster.
 type GitOpsClusterSpec struct {
-	ArgoServer   ArgoServerSpec          `json:"argoServer"`
-	PlacementRef *corev1.ObjectReference `json:"placementRef"`
+	ArgoServer      ArgoServerSpec          `json:"argoServer"`
+	PlacementRef    *corev1.ObjectReference `json:"placementRef"`
+	EnablePullModel *bool                   `json:"enablePullModel,omitempty"`
 }
 
 // ArgoServerSpec defines a argo server installed in a managed cluster.

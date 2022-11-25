@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: multicloud-integrations-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: multicloud-integrations-role
+subjects:
+- kind: ServiceAccount
+  name: multicloud-integrations-sa
+  namespace: open-cluster-management
