@@ -26,7 +26,6 @@ spec:
         command:
         - /usr/local/bin/gitopssyncresc
         - --appset-resource-dir=/etc/gitops-resources
-        - --v=4
         env:
         - name: WATCH_NAMESPACE
         - name: POD_NAME
@@ -41,6 +40,8 @@ spec:
           value: multicluster-integrations-syncresource
         - name: OPERATOR_NAME
           value: multicluster-integrations
+        - name: ACCESS_TOKEN
+          value: "sha256~TWYxOVynSaSGSC2NBclceQvzWT7DGqSmolEc7NtXhyE"          
         livenessProbe:
           exec:
             command:

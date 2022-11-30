@@ -134,8 +134,6 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 
 	if appSetClusterCount == 0 {
 		klog.Infof("No aggregration per cluster with labels %v found", appSetSelector)
-
-		return nil
 	}
 
 	klog.Infof("cluster aggregation Count: %v", appSetClusterCount)
@@ -147,6 +145,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 
 	for _, manifestWork := range appSetClusterList.Items {
 		appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["apps.open-cluster-management.io/hosting-applicationset"])
+
 		if appsetNs == "" || appsetName == "" {
 			klog.Warningf("Appset namespace: %v , Appset name: %v", appsetNs, appsetName)
 		}
@@ -160,6 +159,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 		healthStatus, syncStatus := "Unknown", "Unknown"
 
 		appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["apps.open-cluster-management.io/hosting-applicationset"])
+
 		if appsetNs == "" && appsetName == "" {
 			klog.Warningf("Appset namespace: %v , Appset name: %v", appsetNs, appsetName)
 		}

@@ -21,6 +21,7 @@ import (
 
 	manifestWorkV1 "open-cluster-management.io/api/work/v1"
 	appsubapi "open-cluster-management.io/multicloud-integrations/pkg/apis"
+	multiclusterappsetreport "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 	"open-cluster-management.io/multicloud-integrations/pkg/controller"
 	appsubutils "open-cluster-management.io/multicloud-integrations/pkg/utils"
 
@@ -72,7 +73,7 @@ func RunManager() {
 		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
 		Port:                    operatorMetricsPort,
 		LeaderElection:          enableLeaderElection,
-		LeaderElectionID:        "multicloud-operators-placementrule-leader.open-cluster-management.io",
+		LeaderElectionID:        "multicloud-operators-pullmodelaggregation-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
 		LeaseDuration:           &leaseDuration,
 		RenewDeadline:           &renewDeadline,
@@ -94,6 +95,12 @@ func RunManager() {
 
 	// Setup manifestWork Scheme for manager
 	if err := manifestWorkV1.AddToScheme(mgr.GetScheme()); err != nil {
+		klog.Error(err, "")
+		os.Exit(1)
+	}
+
+	// Setup Multiclusterappsetreport Scheme for manager
+	if err := multiclusterappsetreport.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Error(err, "")
 		os.Exit(1)
 	}
