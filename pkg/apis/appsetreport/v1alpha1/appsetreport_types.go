@@ -77,6 +77,12 @@ type AppConditions struct {
 	Summary ReportSummary `json:"summary,omitempty"`
 }
 
+type TestAppConditions struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata"`
+	Statuses          AppConditions `json:"statuses,omitempty"`
+}
+
 type ReportSummary struct {
 
 	// Synced provides the count of synced applications
