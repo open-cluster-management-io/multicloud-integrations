@@ -190,11 +190,8 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 	PrintMemUsage("AppSet Map generated.")
 	klog.V(4).Infof("AppSet Map: %v", appSetClusterStatusMap)
 
-	// generate report with just overallstatus
-	r.generateAppSetReport(appSetClusterStatusMap, false)
-
-	// generate report again this time with resources and conditions from resource sync controller.
-	r.generateAppSetReport(appSetClusterStatusMap, true)
+	// generate report from both propagation and resource sync controllers.
+	r.generateAppSetReport(appSetClusterStatusMap)
 
 	runtime.GC()
 
@@ -203,7 +200,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 	return nil
 }
 
-func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus, loadYAML bool) {
+func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatusMap map[AppSet]map[Cluster]OverallStatus) {
 	for appset := range appSetClusterStatusMap {
 		appsetNs := appset.appset.Namespace
 		appsetName := appset.appset.Name
@@ -241,19 +238,20 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 		}
 
 		// load yaml from Resource Sync Controller
-		var newAppSetReport *appsetreportV1alpha1.MulticlusterApplicationSetReport
+		var (
+			newAppSetReport *appsetreportV1alpha1.MulticlusterApplicationSetReport
+			appSetCRD       appsetreportV1alpha1.AppConditions
+		)
+		loadYAML := true
+		reportName := filepath.Join(r.ResourceDir, fmt.Sprintf("%.63s", appsetNs+"_"+appsetName)+".yaml")
+		testappSetCRD, err := loadAppSetCRD(reportName)
+
+		if err != nil {
+			klog.Warning("Failed to load appSet CRD err: ", err)
+			loadYAML = false
+		}
 
 		if loadYAML {
-			var appSetCRD appsetreportV1alpha1.AppConditions
-			reportName := filepath.Join(r.ResourceDir, fmt.Sprintf("%.63s", appsetNs+"_"+appsetName)+".yaml")
-			testappSetCRD, err := loadAppSetCRD(reportName)
-
-			if err != nil {
-				klog.Warning("Failed to load appSet CRD err: ", err)
-
-				// controller may be taking a while in this case just skip trying to update the report.
-				continue
-			}
 			appSetCRD.ClusterConditions = testappSetCRD.Statuses.ClusterConditions
 			appSetCRD.Resources = testappSetCRD.Statuses.Resources
 			appSetCRD.Summary = testappSetCRD.Statuses.Summary
