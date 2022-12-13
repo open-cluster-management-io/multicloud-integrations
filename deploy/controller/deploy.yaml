@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multicloud-integrations
+  namespace: open-cluster-management
+spec:
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - command:
+        - /usr/local/bin/gitopscluster
+        - --alsologtostderr
+        - --leader-election-lease-duration=137
+        - --renew-deadline=107
+        - --retry-period=26
+        image: quay.io/open-cluster-management/multicloud-integrations:latest
+        imagePullPolicy: IfNotPresent
+        name: manager
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - "ALL"
+        # TODO(user): Configure the resources accordingly based on the project requirements.
+        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+      serviceAccountName: multicloud-integrations-sa
+      terminationGracePeriodSeconds: 10
