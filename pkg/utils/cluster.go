@@ -16,10 +16,15 @@ package utils
 
 import (
 	"encoding/base64"
+	"errors"
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -349,4 +354,31 @@ func GetManagedClusterNamespace(secretName string) string {
 	klog.Errorf("invalid managed cluster secret name, secretName: %v", secretName)
 
 	return ""
+}
+
+func GetClientConfigFromKubeConfig(kubeconfigFile string) (*rest.Config, error) {
+	if len(kubeconfigFile) > 0 {
+		return getClientConfig(kubeconfigFile)
+	}
+
+	return nil, errors.New("no kubeconfig file found")
+}
+
+func getClientConfig(kubeConfigFile string) (*rest.Config, error) {
+	kubeConfigBytes, err := ioutil.ReadFile(filepath.Clean(kubeConfigFile))
+	if err != nil {
+		return nil, err
+	}
+
+	kubeConfig, err := clientcmd.NewClientConfigFromBytes(kubeConfigBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	clientConfig, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return clientConfig, nil
 }

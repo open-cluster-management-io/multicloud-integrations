@@ -19,15 +19,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/IBM/controller-filtered-cache/filteredcache"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	"open-cluster-management.io/multicloud-integrations/pkg/apis"
 	"open-cluster-management.io/multicloud-integrations/pkg/controller"
 	"open-cluster-management.io/multicloud-integrations/pkg/utils"
 
+	routev1 "github.com/openshift/api/route/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,8 +35,8 @@ import (
 // Change below variables to serve metrics on different host or port.
 var (
 	metricsHost         = "0.0.0.0"
-	metricsPort         = 8388
-	operatorMetricsPort = 8688
+	metricsPort         = 8392
+	operatorMetricsPort = 8692
 )
 
 // RunManager starts the actual manager
@@ -53,13 +51,6 @@ func RunManager() {
 		klog.Info("LeaderElection disabled as not running in a cluster")
 	}
 
-	// Cache only the managed cluster secrets
-	filteredSecretMap := map[schema.GroupVersionKind]filteredcache.Selector{
-		v1.SchemeGroupVersion.WithKind("Secret"): {
-			LabelSelector: "apps.open-cluster-management.io/cluster-name,argocd.argoproj.io/secret-type==cluster",
-		},
-	}
-
 	leaseDuration := time.Duration(options.LeaderElectionLeaseDurationSeconds) * time.Second
 	renewDeadline := time.Duration(options.RenewDeadlineSeconds) * time.Second
 	retryPeriod := time.Duration(options.RetryPeriodSeconds) * time.Second
@@ -68,9 +59,8 @@ func RunManager() {
 		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
 		Port:                    operatorMetricsPort,
 		LeaderElection:          enableLeaderElection,
-		LeaderElectionID:        "multicloud-operators-gitopscluster-leader.open-cluster-management.io",
+		LeaderElectionID:        "multicloud-operators-gitopssyncresc-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
-		NewCache:                filteredcache.NewFilteredCacheBuilder(filteredSecretMap),
 		LeaseDuration:           &leaseDuration,
 		RenewDeadline:           &renewDeadline,
 		RetryPeriod:             &retryPeriod,
@@ -99,13 +89,13 @@ func RunManager() {
 		os.Exit(1)
 	}
 
-	if err := clusterv1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Error(err, "")
 		os.Exit(1)
 	}
 
 	// Setup all Controllers
-	if err := controller.AddGitOpsClusterToManager(mgr); err != nil {
+	if err := controller.AddGitOpsSyncRescToManager(mgr, options.SyncInterval, options.AppSetResourceDir); err != nil {
 		klog.Error(err, "")
 		os.Exit(1)
 	}

@@ -1,4 +1,4 @@
-// Copyright 2022 The Kubernetes Authors.
+// Copyright 2021 The Kubernetes Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,3 +11,33 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+package main
+
+import (
+	"flag"
+
+	"github.com/spf13/pflag"
+
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
+	"k8s.io/klog"
+
+	"open-cluster-management.io/multicloud-integrations/cmd/multiclusterstatusaggregation/exec"
+)
+
+func main() {
+	exec.ProcessFlags()
+
+	klog.InitFlags(nil)
+
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.Parse()
+
+	defer klog.Flush()
+
+	pflag.Parse()
+
+	exec.RunManager()
+}
