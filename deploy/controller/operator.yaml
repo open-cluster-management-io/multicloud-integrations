@@ -67,7 +67,7 @@ spec:
         image: quay.io/open-cluster-management/multicloud-integrations:latest
         imagePullPolicy: Always
         command:
-        - /usr/local/bin/pullmodel-aggregation
+        - /usr/local/bin/multiclusterstatusaggregation
         - --appset-resource-dir=/etc/gitops-resources
         env:
         - name: WATCH_NAMESPACE
