@@ -19,10 +19,10 @@ import (
 	"os"
 	"time"
 
-	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	manifestWorkV1 "open-cluster-management.io/api/work/v1"
 	appsubapi "open-cluster-management.io/multicloud-integrations/pkg/apis"
 	multiclusterappsetreport "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
+	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	"open-cluster-management.io/multicloud-integrations/pkg/controller"
 	appsubutils "open-cluster-management.io/multicloud-integrations/pkg/utils"
 

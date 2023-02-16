@@ -20,12 +20,12 @@ import (
 	"testing"
 	"time"
 
-	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	v1 "open-cluster-management.io/api/work/v1"
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
+	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -169,6 +169,15 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
 
@@ -183,6 +192,15 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
 	sampleAppset3 = &argov1alpha1.ApplicationSet{
@@ -196,6 +214,15 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
 	sampleAppset4 = &argov1alpha1.ApplicationSet{
@@ -209,9 +236,17 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
-
 	sampleAppsetBgd1 = &argov1alpha1.ApplicationSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ApplicationSet",
@@ -223,9 +258,17 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
-
 	sampleAppsetBgd2 = &argov1alpha1.ApplicationSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ApplicationSet",
@@ -237,9 +280,17 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
-
 	sampleAppsetBgd3 = &argov1alpha1.ApplicationSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ApplicationSet",
@@ -251,9 +302,17 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
-
 	sampleAppsetBgd4 = &argov1alpha1.ApplicationSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ApplicationSet",
@@ -265,9 +324,17 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
-
 	sampleAppsetDummy = &argov1alpha1.ApplicationSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ApplicationSet",
@@ -279,6 +346,15 @@ var (
 		},
 		Spec: argov1alpha1.ApplicationSetSpec{
 			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
 		},
 	}
 
