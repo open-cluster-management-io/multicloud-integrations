@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/IBM/controller-filtered-cache v0.3.4
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
+	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.20.0
 	github.com/spf13/pflag v1.0.5
 	k8s.io/api v0.24.3

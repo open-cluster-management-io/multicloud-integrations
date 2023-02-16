@@ -17,6 +17,7 @@ ENV OPERATOR=/usr/local/bin/multicloud-integrations \
 COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/gitopscluster /usr/local/bin/gitopscluster
 COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/gitopssyncresc /usr/local/bin/gitopssyncresc
 COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/multiclusterstatusaggregation /usr/local/bin/multiclusterstatusaggregation
+COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/propagation /usr/local/bin/propagation
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
