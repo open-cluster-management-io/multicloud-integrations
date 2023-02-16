@@ -46,6 +46,7 @@ build:
 	@common/scripts/gobuild.sh build/_output/bin/gitopscluster ./cmd/gitopscluster
 	@common/scripts/gobuild.sh build/_output/bin/gitopssyncresc ./cmd/gitopssyncresc
 	@common/scripts/gobuild.sh build/_output/bin/multiclusterstatusaggregation ./cmd/multiclusterstatusaggregation
+	@common/scripts/gobuild.sh build/_output/bin/propagation ./cmd/propagation
 
 local:
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/gitopssyncresc ./cmd/gitopssyncresc
