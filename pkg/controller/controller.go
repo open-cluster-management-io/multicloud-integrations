@@ -23,6 +23,11 @@ var AddToManagerFuncs []func(manager.Manager) error
 
 var AddGitOpsClusterToManagerFuncs []func(manager.Manager) error
 
+var AddGitOpsSyncRescToManagerFuncs []func(manager.Manager, int, string) error
+
+// AddMulticlusterStatusAggregationToManagerFuncs is a list of functions to add all MulticlusterStatusAggregation Controllers to the Manager
+var AddMulticlusterStatusAggregationToManagerFuncs []func(manager.Manager, int, string) error
+
 // AddToManager adds all Controllers to the Manager
 func AddToManager(m manager.Manager) error {
 	for _, f := range AddToManagerFuncs {
@@ -37,6 +42,27 @@ func AddToManager(m manager.Manager) error {
 func AddGitOpsClusterToManager(m manager.Manager) error {
 	for _, f := range AddGitOpsClusterToManagerFuncs {
 		if err := f(m); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func AddGitOpsSyncRescToManager(m manager.Manager, interval int, resourceDir string) error {
+	for _, f := range AddGitOpsSyncRescToManagerFuncs {
+		if err := f(m, interval, resourceDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Add MulticlusterStatusAggregationToManager adds MulticlusterStatusAggregation Controller to the Manager
+func AddMulticlusterStatusAggregationToManager(m manager.Manager, interval int, resouceDir string) error {
+	for _, f := range AddMulticlusterStatusAggregationToManagerFuncs {
+		if err := f(m, interval, resouceDir); err != nil {
 			return err
 		}
 	}

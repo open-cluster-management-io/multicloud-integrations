@@ -22,6 +22,7 @@ import (
 	"github.com/IBM/controller-filtered-cache/filteredcache"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	"open-cluster-management.io/multicloud-integrations/pkg/apis"
 	"open-cluster-management.io/multicloud-integrations/pkg/controller"
@@ -94,6 +95,11 @@ func RunManager() {
 	}
 
 	if err := clusterv1beta1.AddToScheme(mgr.GetScheme()); err != nil {
+		klog.Error(err, "")
+		os.Exit(1)
+	}
+
+	if err := clusterv1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Error(err, "")
 		os.Exit(1)
 	}

@@ -16,6 +16,9 @@ run:
     - genfiles$
     - vendor$
     - vbh$
+    - pkg/apis/argocd/v1alpha1$
+    - propagation-controller/application$
+    - cmd/propagation$
 
   # which files to skip: they will be analyzed, but issues from them
   # won't be reported. Default value is empty list, but there is
@@ -99,6 +102,9 @@ linters-settings:
   golint:
     # minimal confidence for issues, default is 0.8
     min-confidence: 0.0
+  gocognit:
+    # minimal code complexity to report, 30 by default (but we recommend 10-20)
+    min-complexity: 50
   gofmt:
     # simplify code: gofmt with `-s` option, true by default
     simplify: true
