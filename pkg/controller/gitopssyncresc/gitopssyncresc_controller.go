@@ -116,7 +116,7 @@ func Add(mgr manager.Manager, interval int, resourceDir string) error {
 	// Create resourceDir if it does not exist
 	_, err := os.Stat(resourceDir)
 	if err != nil && os.IsNotExist(err) {
-		err = os.MkdirAll(resourceDir, 0777)
+		err = os.MkdirAll(resourceDir, 0750)
 		if err != nil {
 			klog.Errorf("failed to create directory for resource files:%v", resourceDir)
 			return err
@@ -252,8 +252,9 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		// #nosec G402
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true, // #nosec G402 InsecureSkipVerify conditionally
+			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS12,
 		},
 	}

@@ -85,6 +85,7 @@ endif
 
 test: ensure-kubebuilder-tools
 	go test -timeout 300s -v ./pkg/...
+	go test -timeout 300s -v ./propagation-controller/...
 
 .PHONY: manifests
 manifests: controller-gen
