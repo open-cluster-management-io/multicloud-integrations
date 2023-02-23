@@ -551,9 +551,9 @@ func (r *ReconcilePullModelAggregation) cleanupOrphanReports() error {
 		}
 	}
 
-	for _, m := range missingAppset {
+	for m := range missingAppset {
 		// Remove orphaned report
-		if err := r.Delete(context.TODO(), &m); err != nil {
+		if err := r.Delete(context.TODO(), &missingAppset[m]); err != nil {
 			if errors.IsNotFound(err) {
 				klog.Info("Couldn't find Multiclusterappsetreport to delete ", err)
 			}

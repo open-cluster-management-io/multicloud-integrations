@@ -185,6 +185,7 @@ func generateManifestWork(name, namespace string, application argov1alpha1.Appli
 						{Type: workv1.JSONPathsType, JsonPaths: []workv1.JsonPath{{Name: "healthStatus", Path: ".status.health.status"}}},
 						{Type: workv1.JSONPathsType, JsonPaths: []workv1.JsonPath{{Name: "syncStatus", Path: ".status.sync.status"}}},
 					},
+					UpdateStrategy: &workv1.UpdateStrategy{Type: workv1.UpdateStrategyTypeUpdate},
 				},
 			},
 		},
