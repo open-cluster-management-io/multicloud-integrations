@@ -390,7 +390,7 @@ func TestReconcilePullModel(t *testing.T) {
 
 	c = mgr.GetClient()
 
-	Add(mgr, 10, "../../../examples") // 10 second interval
+	Add(mgr, 10, "../../../hack/test") // 10 second interval
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
 	mgrStopped := StartTestManager(ctx, mgr, g)
@@ -426,7 +426,7 @@ func TestReconcilePullModel(t *testing.T) {
 	g.Expect(c.Create(ctx, sampleManifestWorkDummy.DeepCopy())).NotTo(HaveOccurred())
 
 	// create bgd-app-5 yaml
-	f, err := os.Create("../../../examples/openshift-gitops_bgd-app-5.yaml")
+	f, err := os.Create("../../../hack/test/openshift-gitops_bgd-app-5.yaml")
 	g.Expect(err).NotTo(HaveOccurred())
 
 	defer f.Close()

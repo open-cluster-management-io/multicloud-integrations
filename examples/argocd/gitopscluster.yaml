@@ -11,7 +11,7 @@ metadata:
   name: argo-ocm-importer
   namespace: argocd
 spec:
-  # enablePullModel: true
+  enablePullModel: true
   argoServer:
     cluster: notused
     argoNamespace: argocd
