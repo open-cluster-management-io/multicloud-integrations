@@ -21,7 +21,7 @@ spec:
         argocd.argoproj.io/ocm-managed-cluster: '{{name}}'
         argocd.argoproj.io/ocm-managed-cluster-app-namespace: argocd
     spec:
-      project: my-project
+      project: default
       source:
         repoURL: 'https://github.com/argoproj/argocd-example-apps.git'
         targetRevision: HEAD
