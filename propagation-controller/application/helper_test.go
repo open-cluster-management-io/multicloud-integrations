@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	workv1 "open-cluster-management.io/api/work/v1"
 	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 )
 
@@ -164,6 +165,86 @@ func Test_containsValidPullAnnotation(t *testing.T) {
 	}
 }
 
+func Test_containsValidManifestWorkHubApplicationAnnotations(t *testing.T) {
+	type args struct {
+		manifestWork workv1.ManifestWork
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "valid application annotations",
+			args: args{
+				workv1.ManifestWork{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							AnnotationKeyHubApplicationNamespace: "namespace1",
+							AnnotationKeyHubApplicationName:      "app-name1",
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "missing application namespace annotation",
+			args: args{
+				workv1.ManifestWork{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							AnnotationKeyHubApplicationName: "app-name1",
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "missing application name annotation",
+			args: args{
+				workv1.ManifestWork{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							AnnotationKeyHubApplicationNamespace: "namespace1",
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "empty value",
+			args: args{
+				workv1.ManifestWork{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							AnnotationKeyHubApplicationNamespace: "",
+							AnnotationKeyHubApplicationName:      "",
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "no application annotation",
+			args: args{
+				workv1.ManifestWork{},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := containsValidManifestWorkHubApplicationAnnotations(tt.args.manifestWork); got != tt.want {
+				t.Errorf("containsValidManifestWorkHubApplicationAnnotations() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_generateAppNamespace(t *testing.T) {
 	type args struct {
 		application argov1alpha1.Application
@@ -269,8 +350,9 @@ func Test_prepareApplicationForWorkPayload(t *testing.T) {
 			args: args{
 				argov1alpha1.Application{
 					ObjectMeta: v1.ObjectMeta{
-						Name:       "app1",
-						Finalizers: []string{"app1-final"},
+						Name:        "app1",
+						Finalizers:  []string{"app1-final"},
+						Annotations: map[string]string{AnnotationKeyAppSkipReconcile: "true"},
 					},
 				},
 			},
@@ -293,16 +375,19 @@ func Test_prepareApplicationForWorkPayload(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := prepareApplicationForWorkPayload(tt.args.application)
 			if !reflect.DeepEqual(got.Name, tt.want.Name) {
-				t.Errorf("prepareApplicationForWorkPayload() = %v, want %v", got.Name, tt.want.Name)
+				t.Errorf("prepareApplicationForWorkPayload() Name = %v, want %v", got.Name, tt.want.Name)
 			}
 			if !reflect.DeepEqual(got.Finalizers, tt.want.Finalizers) {
-				t.Errorf("prepareApplicationForWorkPayload() = %v, want %v", got.Finalizers, tt.want.Finalizers)
+				t.Errorf("prepareApplicationForWorkPayload() Finalizers = %v, want %v", got.Finalizers, tt.want.Finalizers)
 			}
 			if !reflect.DeepEqual(got.Namespace, tt.want.Namespace) {
-				t.Errorf("prepareApplicationForWorkPayload() = %v, want %v", got.Namespace, tt.want.Namespace)
+				t.Errorf("prepareApplicationForWorkPayload() Namespace = %v, want %v", got.Namespace, tt.want.Namespace)
 			}
 			if !reflect.DeepEqual(got.Spec.Destination, tt.want.Spec.Destination) {
-				t.Errorf("prepareApplicationForWorkPayload() = %v, want %v", got.Spec.Destination, tt.want.Spec.Destination)
+				t.Errorf("prepareApplicationForWorkPayload() Destination = %v, want %v", got.Spec.Destination, tt.want.Spec.Destination)
+			}
+			if got.Annotations[AnnotationKeyAppSkipReconcile] == "true" {
+				t.Errorf("prepareApplicationForWorkPayload() contains skip reconcile annotation set to true")
 			}
 		})
 	}
@@ -345,7 +430,11 @@ func Test_generateManifestWork(t *testing.T) {
 			},
 			want: results{
 				workLabel: map[string]string{LabelKeyAppSet: "true"},
-				workAnno:  map[string]string{AnnotationKeyAppSet: "argocd/appset1"},
+				workAnno: map[string]string{
+					AnnotationKeyAppSet:                  "argocd/appset1",
+					AnnotationKeyHubApplicationNamespace: "argocd",
+					AnnotationKeyHubApplicationName:      "app1",
+				},
 			},
 		},
 	}

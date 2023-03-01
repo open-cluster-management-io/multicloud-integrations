@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: multicloud-integrations
+  name: multicloud-integrations-gitops
   namespace: open-cluster-management
 spec:
   selector:

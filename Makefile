@@ -107,3 +107,11 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+
+.PHONY: deploy-ocm
+deploy-ocm:
+	deploy/ocm/install.sh
+
+.PHONY: test-e2e
+test-e2e: deploy-ocm
+	e2e/run_e2e.sh

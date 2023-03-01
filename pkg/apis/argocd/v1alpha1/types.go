@@ -277,7 +277,7 @@ type ApplicationStatus struct {
 	// Sync contains information about the application's current sync status
 	Sync SyncStatus `json:"sync,omitempty" protobuf:"bytes,2,opt,name=sync"`
 	// Health contains information about the application's current health status
-	// Health HealthStatus `json:"health,omitempty" protobuf:"bytes,3,opt,name=health"`
+	Health HealthStatus `json:"health,omitempty" protobuf:"bytes,3,opt,name=health"`
 	// History contains information about the application's sync history
 	History RevisionHistories `json:"history,omitempty" protobuf:"bytes,4,opt,name=history"`
 	// Conditions is a list of currently observed application conditions
@@ -635,6 +635,14 @@ type SyncStatus struct {
 	Revisions []string `json:"revisions,omitempty" protobuf:"bytes,4,opt,name=revisions"`
 }
 
+// HealthStatus contains information about the currently observed health state of an application or resource
+type HealthStatus struct {
+	// Status holds the status code of the application or resource
+	Status string `json:"status,omitempty" protobuf:"bytes,1,opt,name=status"`
+	// Message is a human-readable informational message describing the health status
+	Message string `json:"message,omitempty" protobuf:"bytes,2,opt,name=message"`
+}
+
 // InfoItem contains arbitrary, human readable information about an application
 type InfoItem struct {
 	// Name is a human readable title for this piece of information.
@@ -709,23 +717,23 @@ type ResourceNode struct {
 	NetworkingInfo  *ResourceNetworkingInfo `json:"networkingInfo,omitempty" protobuf:"bytes,4,opt,name=networkingInfo"`
 	ResourceVersion string                  `json:"resourceVersion,omitempty" protobuf:"bytes,5,opt,name=resourceVersion"`
 	Images          []string                `json:"images,omitempty" protobuf:"bytes,6,opt,name=images"`
-	// Health          *HealthStatus           `json:"health,omitempty" protobuf:"bytes,7,opt,name=health"`
-	CreatedAt *metav1.Time `json:"createdAt,omitempty" protobuf:"bytes,8,opt,name=createdAt"`
+	Health          *HealthStatus           `json:"health,omitempty" protobuf:"bytes,7,opt,name=health"`
+	CreatedAt       *metav1.Time            `json:"createdAt,omitempty" protobuf:"bytes,8,opt,name=createdAt"`
 }
 
 // ResourceStatus holds the current sync and health status of a resource
 // TODO: describe members of this type
 type ResourceStatus struct {
-	Group     string         `json:"group,omitempty" protobuf:"bytes,1,opt,name=group"`
-	Version   string         `json:"version,omitempty" protobuf:"bytes,2,opt,name=version"`
-	Kind      string         `json:"kind,omitempty" protobuf:"bytes,3,opt,name=kind"`
-	Namespace string         `json:"namespace,omitempty" protobuf:"bytes,4,opt,name=namespace"`
-	Name      string         `json:"name,omitempty" protobuf:"bytes,5,opt,name=name"`
-	Status    SyncStatusCode `json:"status,omitempty" protobuf:"bytes,6,opt,name=status"`
-	// Health          *HealthStatus  `json:"health,omitempty" protobuf:"bytes,7,opt,name=health"`
-	Hook            bool  `json:"hook,omitempty" protobuf:"bytes,8,opt,name=hook"`
-	RequiresPruning bool  `json:"requiresPruning,omitempty" protobuf:"bytes,9,opt,name=requiresPruning"`
-	SyncWave        int64 `json:"syncWave,omitempty" protobuf:"bytes,10,opt,name=syncWave"`
+	Group           string         `json:"group,omitempty" protobuf:"bytes,1,opt,name=group"`
+	Version         string         `json:"version,omitempty" protobuf:"bytes,2,opt,name=version"`
+	Kind            string         `json:"kind,omitempty" protobuf:"bytes,3,opt,name=kind"`
+	Namespace       string         `json:"namespace,omitempty" protobuf:"bytes,4,opt,name=namespace"`
+	Name            string         `json:"name,omitempty" protobuf:"bytes,5,opt,name=name"`
+	Status          SyncStatusCode `json:"status,omitempty" protobuf:"bytes,6,opt,name=status"`
+	Health          *HealthStatus  `json:"health,omitempty" protobuf:"bytes,7,opt,name=health"`
+	Hook            bool           `json:"hook,omitempty" protobuf:"bytes,8,opt,name=hook"`
+	RequiresPruning bool           `json:"requiresPruning,omitempty" protobuf:"bytes,9,opt,name=requiresPruning"`
+	SyncWave        int64          `json:"syncWave,omitempty" protobuf:"bytes,10,opt,name=syncWave"`
 }
 
 // ResourceDiff holds the diff of a live and target resource object
