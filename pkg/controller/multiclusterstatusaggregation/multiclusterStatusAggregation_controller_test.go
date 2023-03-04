@@ -559,6 +559,8 @@ func TestReconcilePullModel(t *testing.T) {
 		{Name: "healthStatus", Value: v1.FieldValue{Type: v1.String, String: &progressing}},
 		{Name: "syncStatus", Value: v1.FieldValue{Type: v1.String, String: &synced}}}))
 
+	time.Sleep(15 * time.Second)
+
 	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "openshift-gitops", Name: "appset-4"}, appsetReport)).NotTo(HaveOccurred())
 	g.Expect(appsetReport.Statuses.Resources).To(BeNil())
 	g.Expect(appsetReport.Statuses.ClusterConditions).To(Equal([]appsetreportV1alpha1.ClusterCondition{
