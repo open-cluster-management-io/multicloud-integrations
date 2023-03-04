@@ -323,7 +323,11 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 		return nil, nil, nil
 	}
 
-	items := searchResults[0].(map[string]interface{})["items"].([]interface{})
+	var items []interface{}
+	if i, ok := searchResults[0].(map[string]interface{})["items"]; ok && i != nil {
+		items = searchResults[0].(map[string]interface{})["items"].([]interface{})
+	}
+
 	klog.V(1).Infof("Items: %v", items)
 
 	var related []interface{}
