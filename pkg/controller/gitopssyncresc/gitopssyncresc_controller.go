@@ -95,7 +95,7 @@ type GitOpsSyncResource struct {
 	DataSender  DataSender
 }
 
-var ExcludeResourceList = []string{"ApplicationSet", "Application", "EndpointSlice", "Pod", "ReplicaSet"}
+var ExcludeResourceList = []string{"ApplicationSet", "Application", "Cluster", "EndpointSlice", "Pod", "ReplicaSet"}
 
 // Add creates a new argocd cluster Controller and adds it to the Manager with default RBAC.
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
@@ -510,9 +510,9 @@ func getResourceRef(relatedItem map[string]interface{}) *appsetreport.ResourceRe
 	}
 
 	repRef := &appsetreport.ResourceRef{
-		APIVersion: apigroup + relatedItem["apiversion"].(string),
-		Kind:       relatedItem["kind"].(string),
-		Name:       relatedItem["name"].(string),
+		APIVersion: apigroup + fmt.Sprintf("%v", relatedItem["apiversion"]),
+		Kind:       fmt.Sprintf("%v", relatedItem["kind"]),
+		Name:       fmt.Sprintf("%v", relatedItem["name"]),
 		Namespace:  namespace,
 	}
 

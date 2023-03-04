@@ -85,6 +85,7 @@ const responseData1 = `
 						 "ManagedClusterJoined":"True",
 						 "apigroup":"internal.open-cluster-management.io",
 						 "cpu":"8",
+						 "cluster":"cluster1",
 						 "kind":"Cluster",
 						 "kind_plural":"managedclusterinfos",
 						 "name":"cluster1"
