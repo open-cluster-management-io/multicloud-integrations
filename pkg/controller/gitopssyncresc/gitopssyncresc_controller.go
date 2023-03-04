@@ -95,7 +95,7 @@ type GitOpsSyncResource struct {
 	DataSender  DataSender
 }
 
-var ExcludeResourceList = []string{"ApplicationSet", "Application", "EndpointSlice", "Pod", "ReplicaSet"}
+var ExcludeResourceList = []string{"ApplicationSet", "Application", "EndpointSlice", "Pod", "ReplicaSet", "Cluster"}
 
 // Add creates a new argocd cluster Controller and adds it to the Manager with default RBAC.
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
@@ -467,7 +467,7 @@ func getResourceMapList(related []interface{}, cluster string) []appsetreport.Re
 
 	for _, rel := range related {
 		if relatedmap, ok := rel.(map[string]interface{}); ok {
-			klog.V(1).Info(fmt.Sprintf("related: %v", relatedmap))
+			klog.Info(fmt.Sprintf("related: %v", relatedmap))
 
 			if slices.Contains(ExcludeResourceList, relatedmap["kind"].(string)) {
 				klog.Infof("skip resource kind: %v", relatedmap["kind"].(string))
@@ -501,7 +501,17 @@ func getResourceMapList(related []interface{}, cluster string) []appsetreport.Re
 func getResourceRef(relatedItem map[string]interface{}) *appsetreport.ResourceRef {
 	apigroup := ""
 	if _apigroup, ok := relatedItem["apigroup"]; ok && _apigroup != "" {
-		apigroup = _apigroup.(string) + "/"
+		apigroup = _apigroup.(string)
+	}
+
+	version := ""
+	if _version, ok := relatedItem["apiversion"]; ok && _version != "" {
+		version = _version.(string)
+	}
+
+	APIVersion := apigroup
+	if version != "" {
+		APIVersion = APIVersion + "/" + version
 	}
 
 	namespace := ""
@@ -510,7 +520,7 @@ func getResourceRef(relatedItem map[string]interface{}) *appsetreport.ResourceRe
 	}
 
 	repRef := &appsetreport.ResourceRef{
-		APIVersion: apigroup + relatedItem["apiversion"].(string),
+		APIVersion: APIVersion,
 		Kind:       relatedItem["kind"].(string),
 		Name:       relatedItem["name"].(string),
 		Namespace:  namespace,
