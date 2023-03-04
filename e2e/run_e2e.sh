@@ -6,6 +6,23 @@
 set -o nounset
 set -o pipefail
 
+echo "SETUP install multicloud-integrations"
+kubectl config use-context kind-hub
+kubectl apply -f deploy/crds/
+kubectl apply -f deploy/controller/
+
+sleep 120
+
+echo "TEST Propgation controller startup (expecting error)"
+POD_NAME=$(kubectl -n open-cluster-management get deploy multicloud-integrations -o yaml  | grep ReplicaSet | grep successful | cut -d'"' -f2)
+POD_NAME=$(kubectl -n open-cluster-management get pod | grep $POD_NAME | cut -d' ' -f1)
+if kubectl -n open-cluster-management logs $POD_NAME argocd-pull-integration-controller-manager | grep "failed to find CRD applications.argoproj.io"; then
+    echo "Propgation controller failed to startup"
+else
+    echo "Propgation controller startup successfully"
+    exit 1
+fi
+
 ### Setup
 echo "SETUP install Argo CD to Managed cluster"
 kubectl config use-context kind-cluster1
@@ -23,12 +40,15 @@ kubectl -n argocd scale deployment/argocd-redis --replicas 0
 kubectl -n argocd scale deployment/argocd-notifications-controller --replicas 0
 kubectl -n argocd scale statefulset/argocd-application-controller --replicas 0
 
-echo "SETUP install multicloud-integrations"
-kubectl config use-context kind-hub
-kubectl apply -f deploy/crds/
-kubectl apply -f deploy/controller/
-
 sleep 60s
+
+echo "TEST Propgation controller startup"
+if kubectl -n open-cluster-management logs $POD_NAME argocd-pull-integration-controller-manager | grep "Starting Controller" | grep "Application"; then
+    echo "Propgation controller startup successfully"
+else
+    echo "Propgation controller failed to startup"
+    exit 1
+fi
 
 echo "SETUP print managed cluster setup"
 kubectl config use-context kind-cluster1

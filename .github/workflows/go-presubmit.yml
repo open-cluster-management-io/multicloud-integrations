@@ -111,7 +111,6 @@ jobs:
           name: hub
       - name: Load image on the nodes of the cluster
         run: |
-          kind load docker-image --name=cluster1 quay.io/open-cluster-management/multicloud-integrations:latest
           kind load docker-image --name=hub quay.io/open-cluster-management/multicloud-integrations:latest
       - name: Run e2e test
         run: |
