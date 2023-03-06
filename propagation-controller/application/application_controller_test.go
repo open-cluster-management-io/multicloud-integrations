@@ -35,10 +35,11 @@ import (
 var _ = Describe("Application Pull controller", func() {
 
 	const (
-		appName      = "app-1"
-		appName2     = "app-2"
-		appNamespace = "default"
-		clusterName  = "cluster1"
+		appName          = "app-1"
+		appName2         = "app-2"
+		appNamespace     = "default"
+		clusterName      = "cluster1"
+		localClusterName = "local-cluster"
 	)
 
 	appKey := types.NamespacedName{Name: appName, Namespace: appNamespace}
@@ -130,6 +131,53 @@ var _ = Describe("Application Pull controller", func() {
 			By("Deleting the Application")
 			Expect(k8sClient.Delete(ctx, &app2)).Should(Succeed())
 			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {
+					return true
+				}
+				return false
+			}).Should(BeTrue())
+		})
+	})
+
+	Context("When Application with OCM pull label is created for local-cluster", func() {
+		It("Should not create ManifestWork", func() {
+			By("Creating the OCM ManagedCluster")
+			managedCluster := clusterv1.ManagedCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: localClusterName,
+				},
+			}
+			Expect(k8sClient.Create(ctx, &managedCluster)).Should(Succeed())
+
+			By("Creating the OCM ManagedCluster namespace")
+			managedClusterNs := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: localClusterName,
+				},
+			}
+			Expect(k8sClient.Create(ctx, &managedClusterNs)).Should(Succeed())
+
+			By("Creating the Application with OCM pull label and local-cluster")
+			app2 := argov1alpha1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        appName2,
+					Namespace:   appNamespace,
+					Labels:      map[string]string{LabelKeyPull: strconv.FormatBool(true)},
+					Annotations: map[string]string{AnnotationKeyOCMManagedCluster: localClusterName},
+					Finalizers:  []string{argov1alpha1.ResourcesFinalizerName},
+				},
+				Spec: argov1alpha1.ApplicationSpec{
+					Project: "default",
+					Source:  &argov1alpha1.ApplicationSource{RepoURL: "dummy"},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &app2)).Should(Succeed())
+			app2 = argov1alpha1.Application{}
+			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
+
+			mwKey := types.NamespacedName{Name: generateManifestWorkName(app2), Namespace: clusterName}
+			mw := workv1.ManifestWork{}
+			Consistently(func() bool {
 				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {
 					return true
 				}
