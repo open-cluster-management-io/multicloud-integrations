@@ -100,6 +100,13 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	managedClusterName := application.GetAnnotations()[AnnotationKeyOCMManagedCluster]
+
+	if managedClusterName == "local-cluster" {
+		log.Info("skipping Application with the local-cluster as Managed Cluster")
+
+		return ctrl.Result{}, nil
+	}
+
 	mwName := generateManifestWorkName(application)
 
 	// the Application is being deleted, find the ManifestWork and delete that as well
