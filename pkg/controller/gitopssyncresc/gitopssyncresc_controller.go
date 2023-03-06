@@ -525,8 +525,8 @@ func getResourceRef(relatedItem map[string]interface{}) *appsetreport.ResourceRe
 
 	repRef := &appsetreport.ResourceRef{
 		APIVersion: APIVersion,
-		Kind:       relatedItem["kind"].(string),
-		Name:       relatedItem["name"].(string),
+		Kind:       fmt.Sprintf("%v", relatedItem["kind"]),
+		Name:       fmt.Sprintf("%v", relatedItem["name"]),
 		Namespace:  namespace,
 	}
 
