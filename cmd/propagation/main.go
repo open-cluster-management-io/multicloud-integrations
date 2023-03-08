@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
@@ -40,9 +41,27 @@ import (
 	"open-cluster-management.io/multicloud-integrations/propagation-controller/application"
 )
 
+// PropagationCMDOptions for command line flag parsing
+type PropagationCMDOptions struct {
+	MetricsAddr                        string
+	LeaderElectionLeaseDurationSeconds int
+	RenewDeadlineSeconds               int
+	RetryPeriodSeconds                 int
+}
+
+var options = PropagationCMDOptions{
+	MetricsAddr:                        "",
+	LeaderElectionLeaseDurationSeconds: 137,
+	RenewDeadlineSeconds:               107,
+	RetryPeriodSeconds:                 26,
+}
+
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme              = runtime.NewScheme()
+	setupLog            = ctrl.Log.WithName("setup")
+	metricsHost         = "0.0.0.0"
+	metricsPort         = 8386
+	operatorMetricsPort = 8698
 )
 
 func init() {
@@ -53,14 +72,34 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
 	var enableLeaderElection bool
-	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(
+		&options.MetricsAddr,
+		"metrics-addr",
+		options.MetricsAddr,
+		"The address the metric endpoint binds to.",
+	)
+
+	flag.IntVar(
+		&options.LeaderElectionLeaseDurationSeconds,
+		"leader-election-lease-duration",
+		options.LeaderElectionLeaseDurationSeconds,
+		"The leader election lease duration in seconds.",
+	)
+
+	flag.IntVar(
+		&options.RenewDeadlineSeconds,
+		"renew-deadline",
+		options.RenewDeadlineSeconds,
+		"The renew deadline in seconds.",
+	)
+
+	flag.IntVar(
+		&options.RetryPeriodSeconds,
+		"retry-period",
+		options.RetryPeriodSeconds,
+		"The retry period in seconds.",
+	)
 	opts := zap.Options{
 		Development: true,
 	}
@@ -69,24 +108,20 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	leaseDuration := time.Duration(options.LeaderElectionLeaseDurationSeconds) * time.Second
+	renewDeadline := time.Duration(options.RenewDeadlineSeconds) * time.Second
+	retryPeriod := time.Duration(options.RetryPeriodSeconds) * time.Second
+	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "ec810684.open-cluster-management.io",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
+		Scheme:                  scheme,
+		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		Port:                    operatorMetricsPort,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionID:        "multicloud-operators-propagation-leader.open-cluster-management.io",
+		LeaderElectionNamespace: "kube-system",
+		LeaseDuration:           &leaseDuration,
+		RenewDeadline:           &renewDeadline,
+		RetryPeriod:             &retryPeriod,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
