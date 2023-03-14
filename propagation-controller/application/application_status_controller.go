@@ -121,8 +121,13 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	appSetName := getAppSetOwnerName(application)
 	if appSetName != "" && len(application.Status.Conditions) == 0 {
 		application.Status.Conditions = []argov1alpha1.ApplicationCondition{{
-			Type:    "AdditionalStatusReport",
-			Message: fmt.Sprintf("kubectl get multiclusterapplicationsetreports -n %s %s", application.Namespace, appSetName),
+			Type: "AdditionalStatusReport",
+			Message: fmt.Sprintf("kubectl get multiclusterapplicationsetreports -n %s %s"+
+				"\nAdditional details available in ManagedCluster %s"+
+				"\nkubectl get applications -n %s %s",
+				applicationNamespace, appSetName,
+				manifestWork.Namespace,
+				applicationNamespace, applicationName),
 		}}
 	}
 
