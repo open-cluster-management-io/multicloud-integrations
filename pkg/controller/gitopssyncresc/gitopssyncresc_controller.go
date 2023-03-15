@@ -305,7 +305,7 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 	postBody, _ := json.Marshal(searchQuery)
 	klog.V(1).Infof("search: %v", string(postBody[:]))
 
-	req, err := http.NewRequest("POST", routeURL, bytes.NewBuffer(postBody))
+	req, err := http.NewRequest(http.MethodPost, routeURL, bytes.NewBuffer(postBody))
 	if err != nil {
 		return nil, nil, err
 	}
