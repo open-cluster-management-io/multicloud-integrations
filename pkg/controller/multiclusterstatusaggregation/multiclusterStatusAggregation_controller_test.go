@@ -36,6 +36,19 @@ var (
 
 	// ManifestWorks
 
+	longResourceManifestWork = &v1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster1-long-resource-name-truncate-the-name-over-46-chars",
+			Namespace: "cluster1",
+			Annotations: map[string]string{
+				"apps.open-cluster-management.io/hosting-applicationset": "openshift-gitops/long-resource-name-truncate-the-name-over-46-chars",
+			},
+			Labels: map[string]string{
+				"apps.open-cluster-management.io/application-set": "true",
+			},
+		},
+	}
+
 	sampleManifestWork1 = &v1.ManifestWork{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cluster1-bgd-app",
@@ -157,6 +170,29 @@ var (
 	}
 
 	// Appsets
+
+	longAppsetName = &argov1alpha1.ApplicationSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ApplicationSet",
+			APIVersion: "argoproj.io/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "long-resource-name-truncate-the-name-over-46-chars",
+			Namespace: "openshift-gitops",
+		},
+		Spec: argov1alpha1.ApplicationSetSpec{
+			Generators: []argov1alpha1.ApplicationSetGenerator{},
+			Template: argov1alpha1.ApplicationSetTemplate{
+				Spec: argov1alpha1.ApplicationSpec{
+					Source: &argov1alpha1.ApplicationSource{
+						RepoURL: "",
+					},
+					Destination: argov1alpha1.ApplicationDestination{},
+					Project:     "",
+				},
+			},
+		},
+	}
 
 	sampleAppset1 = &argov1alpha1.ApplicationSet{
 		TypeMeta: metav1.TypeMeta{
@@ -379,6 +415,22 @@ var (
     conditions:
     - type: SyncError
       message: "error message 3"`
+
+	longResourceName = `statuses:
+  resources:
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: redis-master-long
+    namespace: playback-ns-5
+  - apiVersion: v1
+    kind: Service
+    name: redis-master-long
+    namespace: playback-ns-5
+  clusterConditions:
+  - cluster: cluster1
+    conditions:
+    - type: SyncError
+      message: "error message 1"`
 )
 
 func TestReconcilePullModel(t *testing.T) {
@@ -410,6 +462,7 @@ func TestReconcilePullModel(t *testing.T) {
 	g.Expect(c.Create(ctx, sampleAppsetBgd3.DeepCopy())).NotTo(HaveOccurred())
 	g.Expect(c.Create(ctx, sampleAppsetBgd4.DeepCopy())).NotTo(HaveOccurred())
 	g.Expect(c.Create(ctx, sampleAppsetDummy.DeepCopy())).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, longAppsetName.DeepCopy())).NotTo(HaveOccurred())
 
 	// Create appset reports
 	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSetReport1.DeepCopy())).NotTo(HaveOccurred())
@@ -424,15 +477,24 @@ func TestReconcilePullModel(t *testing.T) {
 	g.Expect(c.Create(ctx, sampleManifestWork4.DeepCopy())).NotTo(HaveOccurred())
 	g.Expect(c.Create(ctx, sampleManifestWork5.DeepCopy())).NotTo(HaveOccurred())
 	g.Expect(c.Create(ctx, sampleManifestWorkDummy.DeepCopy())).NotTo(HaveOccurred())
+	g.Expect(c.Create(ctx, longResourceManifestWork.DeepCopy())).NotTo(HaveOccurred())
 
 	// create bgd-app-5 yaml
 	f, err := os.Create("../../../hack/test/openshift-gitops_bgd-app-5.yaml")
 	g.Expect(err).NotTo(HaveOccurred())
 
-	defer f.Close()
-
 	_, err = f.WriteString(bgdAppData5)
 	g.Expect(err).NotTo(HaveOccurred())
+
+	f, err = os.Create("../../../hack/test/openshift-gitops_long-resource-name-truncate-the-name-over-46-chars.yaml")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	_, err = f.WriteString(longResourceName)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	defer os.Remove("../../../hack/test/openshift-gitops_long-resource-name-truncate-the-name-over-46-chars.yaml")
+
+	defer f.Close()
 
 	time.Sleep(4 * time.Second)
 
@@ -466,7 +528,28 @@ func TestReconcilePullModel(t *testing.T) {
 		{Name: "healthStatus", Value: v1.FieldValue{Type: v1.String, String: &healthy}},
 		{Name: "syncStatus", Value: v1.FieldValue{Type: v1.String, String: &synced}}}))
 
+	// verify truncating label is working properly
 	appsetReport := &appsetreportV1alpha1.MulticlusterApplicationSetReport{}
+	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "openshift-gitops",
+		Name: "long-resource-name-truncate-the-name-over-46-chars"}, appsetReport)).NotTo(HaveOccurred())
+	g.Expect(appsetReport.Labels["apps.open-cluster-management.io/hosting-applicationset"]).
+		To(Equal("openshift-gitops.long-resource-name-truncate-the-name-over-46-c"))
+
+	g.Expect(appsetReport.Statuses.Resources).To(Equal([]appsetreportV1alpha1.ResourceRef{
+		{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+			Name:       "redis-master-long",
+			Namespace:  "playback-ns-5",
+		},
+		{
+			APIVersion: "v1",
+			Kind:       "Service",
+			Name:       "redis-master-long",
+			Namespace:  "playback-ns-5",
+		},
+	}))
+
 	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "openshift-gitops", Name: "appset-1"}, appsetReport)).NotTo(HaveOccurred())
 	g.Expect(appsetReport.Statuses.Summary).To(Equal(appsetreportV1alpha1.ReportSummary{
 		Synced:     "1",
