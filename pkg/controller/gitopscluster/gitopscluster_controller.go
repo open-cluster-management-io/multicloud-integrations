@@ -563,7 +563,7 @@ func (r *ReconcileGitOpsCluster) CreateApplicationSetConfigMaps(namespace string
 	for i := range maps {
 		configMap := v1.ConfigMap{}
 
-		err := r.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: duckMap.Name}, &configMap)
+		err := r.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: maps[i].Name}, &configMap)
 
 		if err != nil && strings.Contains(err.Error(), " not found") {
 			err = r.Create(context.Background(), &maps[i])
