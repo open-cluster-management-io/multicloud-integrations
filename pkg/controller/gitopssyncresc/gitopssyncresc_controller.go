@@ -70,7 +70,11 @@ func (c *HTTPDataSender) Send(httpClient *http.Client, req *http.Request) (map[s
 	}
 
 	// Parse search results
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			klog.Error(err, "Error parsing search results")
+		}
+	}()
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
