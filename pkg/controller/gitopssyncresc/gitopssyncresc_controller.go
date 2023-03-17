@@ -75,6 +75,7 @@ func (c *HTTPDataSender) Send(httpClient *http.Client, req *http.Request) (map[s
 			klog.Error(err, "Error parsing search results")
 		}
 	}()
+
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
