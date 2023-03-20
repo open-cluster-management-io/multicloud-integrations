@@ -560,13 +560,13 @@ func (r *ReconcileGitOpsCluster) CreateApplicationSetConfigMaps(namespace string
 		getConfigMapDuck(configMapNameNew, namespace, "cluster.open-cluster-management.io/v1beta1", "placementdecisions"),
 	}
 
-	for _, duckMap := range maps {
+	for i := range maps {
 		configMap := v1.ConfigMap{}
 
-		err := r.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: duckMap.Name}, &configMap)
+		err := r.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: maps[i].Name}, &configMap)
 
 		if err != nil && strings.Contains(err.Error(), " not found") {
-			err = r.Create(context.Background(), &duckMap)
+			err = r.Create(context.Background(), &maps[i])
 			if err != nil {
 				return err
 			}
