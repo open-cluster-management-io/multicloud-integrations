@@ -93,8 +93,8 @@ func (in *GitOpsClusterSpec) DeepCopyInto(out *GitOpsClusterSpec) {
 		*out = new(v1.ObjectReference)
 		**out = **in
 	}
-	if in.EnablePullModel != nil {
-		in, out := &in.EnablePullModel, &out.EnablePullModel
+	if in.CreateBlankClusterSecrets != nil {
+		in, out := &in.CreateBlankClusterSecrets, &out.CreateBlankClusterSecrets
 		*out = new(bool)
 		**out = **in
 	}

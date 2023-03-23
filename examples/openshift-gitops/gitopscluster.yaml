@@ -11,7 +11,7 @@ metadata:
   name: argo-acm-importer
   namespace: openshift-gitops
 spec:
-  # enablePullModel: true
+  # createBlankClusterSecrets: true
   argoServer:
     cluster: notused
     argoNamespace: openshift-gitops
