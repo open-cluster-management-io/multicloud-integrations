@@ -309,13 +309,13 @@ func (r *ReconcileGitOpsCluster) reconcileGitOpsCluster(
 	klog.Infof("adding managed clusters %v into argo namespace %s", managedClusters, instance.Spec.ArgoServer.ArgoNamespace)
 
 	// 3. Copy secret contents from the managed cluster namespaces and create the secret in spec.argoServer.argoNamespace
-	// if spec.enablePullModel is true then do err on missing secret from the managed cluster namespace
-	enablePullModel := false
-	if instance.Spec.EnablePullModel != nil {
-		enablePullModel = *instance.Spec.EnablePullModel
+	// if spec.createBlankClusterSecrets is true then do err on missing secret from the managed cluster namespace
+	createBlankClusterSecrets := false
+	if instance.Spec.CreateBlankClusterSecrets != nil {
+		createBlankClusterSecrets = *instance.Spec.CreateBlankClusterSecrets
 	}
 
-	err = r.AddManagedClustersToArgo(instance.Spec.ArgoServer.ArgoNamespace, managedClusters, orphanSecretsList, enablePullModel)
+	err = r.AddManagedClustersToArgo(instance.Spec.ArgoServer.ArgoNamespace, managedClusters, orphanSecretsList, createBlankClusterSecrets)
 
 	if err != nil {
 		klog.Info("failed to add managed clusters to argo")
@@ -675,7 +675,7 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 	argoNamespace string,
 	managedClusters []string,
 	orphanSecretsList map[types.NamespacedName]string,
-	enablePullModel bool) error {
+	createBlankClusterSecrets bool) error {
 	returnErr := errors.New("")
 	errorOccurred := false
 
@@ -688,7 +688,7 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 		managedClusterSecret := &v1.Secret{}
 		err := r.Get(context.TODO(), managedClusterSecretKey, managedClusterSecret)
 
-		if err != nil && !enablePullModel {
+		if err != nil && !createBlankClusterSecrets {
 			klog.Error("failed to get managed cluster secret. err: ", err.Error())
 
 			errorOccurred = true
@@ -697,7 +697,7 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 			continue
 		}
 
-		err = r.CreateManagedClusterSecretInArgo(argoNamespace, *managedClusterSecret, managedCluster, enablePullModel)
+		err = r.CreateManagedClusterSecretInArgo(argoNamespace, *managedClusterSecret, managedCluster, createBlankClusterSecrets)
 
 		if err != nil {
 			klog.Error("failed to create managed cluster secret. err: ", err.Error())
@@ -722,11 +722,11 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 
 // CreateManagedClusterSecretInArgo creates a managed cluster secret with specific metadata in Argo namespace
 func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace string, managedClusterSecret v1.Secret,
-	managedCluster string, enablePullModel bool) error {
+	managedCluster string, createBlankClusterSecrets bool) error {
 	// create the new cluster secret in the argocd server namespace
 	var newSecret *v1.Secret
 
-	if enablePullModel {
+	if createBlankClusterSecrets {
 		newSecret = &v1.Secret{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Secret",
