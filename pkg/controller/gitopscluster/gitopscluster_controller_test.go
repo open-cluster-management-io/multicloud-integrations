@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	v1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -181,6 +182,15 @@ var (
 	gitopsServerNamespace1 = &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "openshift-gitops1",
+		},
+	}
+
+	managedCluster1 = &v1.ManagedCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster1",
+			Labels: map[string]string{
+				"test-label": "test-value",
+			},
 		},
 	}
 
@@ -358,6 +368,11 @@ func TestReconcileCreateSecretInArgo(t *testing.T) {
 
 	g.Expect(placementDecisionAfterupdate.Status.Decisions[0].ClusterName).To(gomega.Equal("cluster1"))
 
+	managedCluster1Copy := managedCluster1.DeepCopy()
+	g.Expect(c.Create(context.TODO(), managedCluster1Copy)).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), managedCluster1Copy)
+
 	// Managed cluster namespace
 	c.Create(context.TODO(), managedClusterNamespace1)
 	g.Expect(c.Create(context.TODO(), managedClusterSecret1.DeepCopy())).NotTo(gomega.HaveOccurred())
@@ -383,12 +398,24 @@ func TestReconcileCreateSecretInArgo(t *testing.T) {
 	defer c.Delete(context.TODO(), goc)
 
 	// Test that the managed cluster's secret is created in the Argo namespace
-	g.Expect(expectedSecretCreated(c, gitOpsClusterSecret1Key)).To(gomega.BeTrue())
+	secret := expectedSecretCreated(c, gitOpsClusterSecret1Key)
+	g.Expect(secret).ToNot(gomega.BeNil())
+	g.Expect(secret.Labels).To(gomega.HaveKeyWithValue("test-label", "test-value"))
 
 	// Test that the ConfigMaps for ApplicationSets were created
 	g.Expect(expectedConfigMapCreated(c, applicationSetConfigMapNew)).To(gomega.BeTrue())
 	g.Expect(expectedConfigMapCreated(c, applicationSetConfigMapOld)).To(gomega.BeTrue())
 	g.Expect(expectedRbacCreated(c, applicationsetRole)).To(gomega.BeTrue())
+
+	// Test that updates to the managed cluster's labels are propagated
+	managedCluster1Copy.Labels["test-label-2"] = "test-value-2"
+	g.Expect(c.Update(context.TODO(), managedCluster1Copy)).NotTo(gomega.HaveOccurred())
+	g.Eventually(func(g2 gomega.Gomega) {
+		updatedSecret := expectedSecretCreated(c, gitOpsClusterSecret1Key)
+		g2.Expect(updatedSecret).ToNot(gomega.BeNil())
+		g2.Expect(updatedSecret.Labels).To(gomega.HaveKeyWithValue("test-label", "test-value"))
+		g2.Expect(updatedSecret.Labels).To(gomega.HaveKeyWithValue("test-label-2", "test-value-2"))
+	}, 60*time.Second, 1*time.Second).Should(gomega.Succeed())
 }
 
 func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
@@ -468,7 +495,7 @@ func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
 
 	// Test that the managed cluster's secret is not created in argocd2
 	// namespace because there is no valid argocd server pod in argocd2 namespace
-	g.Expect(expectedSecretCreated(c, gitOpsClusterSecret2Key)).To(gomega.BeFalse())
+	g.Expect(expectedSecretCreated(c, gitOpsClusterSecret2Key)).To(gomega.BeNil())
 }
 
 func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
@@ -525,6 +552,11 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 
 	g.Expect(placementDecisionAfterupdate3.Status.Decisions[0].ClusterName).To(gomega.Equal("cluster1"))
 
+	managedCluster1Copy := managedCluster1.DeepCopy()
+	g.Expect(c.Create(context.TODO(), managedCluster1Copy)).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), managedCluster1Copy)
+
 	// Managed cluster namespace
 	c.Create(context.TODO(), managedClusterNamespace1)
 	g.Expect(c.Create(context.TODO(), managedClusterSecret1.DeepCopy())).NotTo(gomega.HaveOccurred())
@@ -555,10 +587,22 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 	defer c.Delete(context.TODO(), goc)
 
 	// Test that the managed cluster's secret is created in the Argo namespace
-	g.Expect(expectedSecretCreated(c, gitOpsClusterSecret3Key)).To(gomega.BeTrue())
+	secret := expectedSecretCreated(c, gitOpsClusterSecret3Key)
+	g.Expect(secret).ToNot(gomega.BeNil())
+	g.Expect(secret.Labels).To(gomega.HaveKeyWithValue("test-label", "test-value"))
+
+	// Test that updates to the managed cluster's labels are propagated
+	managedCluster1Copy.Labels["test-label-2"] = "test-value-2"
+	g.Expect(c.Update(context.TODO(), managedCluster1Copy)).NotTo(gomega.HaveOccurred())
+	g.Eventually(func(g2 gomega.Gomega) {
+		updatedSecret := expectedSecretCreated(c, gitOpsClusterSecret3Key)
+		g2.Expect(updatedSecret).ToNot(gomega.BeNil())
+		g2.Expect(updatedSecret.Labels).To(gomega.HaveKeyWithValue("test-label", "test-value"))
+		g2.Expect(updatedSecret.Labels).To(gomega.HaveKeyWithValue("test-label-2", "test-value-2"))
+	}, 60*time.Second, 1*time.Second).Should(gomega.Succeed())
 }
 
-func expectedSecretCreated(c client.Client, expectedSecretKey types.NamespacedName) bool {
+func expectedSecretCreated(c client.Client, expectedSecretKey types.NamespacedName) *corev1.Secret {
 	timeout := 0
 
 	for {
@@ -566,11 +610,11 @@ func expectedSecretCreated(c client.Client, expectedSecretKey types.NamespacedNa
 		err := c.Get(context.TODO(), expectedSecretKey, secret)
 
 		if err == nil {
-			return true
+			return secret
 		}
 
 		if timeout > 30 {
-			return false
+			return nil
 		}
 
 		time.Sleep(time.Second * 3)
