@@ -18,8 +18,13 @@ package gitopscluster
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +42,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -152,6 +158,10 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 			handler.EnqueueRequestsFromMapFunc(pdMapper.Map),
 			utils.PlacementDecisionPredicateFunc)
 
+		if err != nil {
+			return err
+		}
+
 		// Watch cluster changes to update cluster labels
 		err = c.Watch(
 			&source.Kind{Type: &spokeclusterv1.ManagedCluster{}},
@@ -161,6 +171,11 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 			return err
 		}
 
+		// Watch changes to Managed service account's tokenSecretRef
+		err = c.Watch(
+			&source.Kind{Type: &authv1alpha1.ManagedServiceAccount{}},
+			&handler.EnqueueRequestForObject{},
+			utils.ManagedServiceAccountPredicateFunc)
 		if err != nil {
 			return err
 		}
@@ -330,7 +345,7 @@ func (r *ReconcileGitOpsCluster) reconcileGitOpsCluster(
 		createBlankClusterSecrets = *instance.Spec.CreateBlankClusterSecrets
 	}
 
-	err = r.AddManagedClustersToArgo(instance.Spec.ArgoServer.ArgoNamespace, managedClusters, orphanSecretsList, createBlankClusterSecrets)
+	err = r.AddManagedClustersToArgo(instance, managedClusters, orphanSecretsList, createBlankClusterSecrets)
 
 	if err != nil {
 		klog.Info("failed to add managed clusters to argo")
@@ -393,6 +408,58 @@ func (r *ReconcileGitOpsCluster) GetAllManagedClusterSecretsInArgo() (v1.SecretL
 	}
 
 	return *secretList, nil
+}
+
+// GetAllManagedClusterSecretsInArgo returns list of secrets from all GitOps managed cluster
+func (r *ReconcileGitOpsCluster) GetAllNonAcmManagedClusterSecretsInArgo(argoNs string) (map[string][]*v1.Secret, error) {
+	klog.Info("Getting all non-acm managed cluster secrets from argo namespaces")
+
+	secretMap := make(map[string][]*v1.Secret, 0)
+
+	secretList := &v1.SecretList{}
+	listopts := &client.ListOptions{}
+
+	secretSelector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"argocd.argoproj.io/secret-type": "cluster",
+		},
+	}
+
+	secretSelectionLabel, err := utils.ConvertLabels(secretSelector)
+	if err != nil {
+		klog.Error("Failed to convert managed cluster secret selector, err:", err)
+		return secretMap, err
+	}
+
+	listopts.Namespace = argoNs
+
+	listopts.LabelSelector = secretSelectionLabel
+	err = r.List(context.TODO(), secretList, listopts)
+
+	if err != nil {
+		klog.Error("Failed to list managed cluster secrets in argo, err:", err)
+		return secretMap, err
+	}
+
+	// Add non-ACM secrets to map by cluster name
+	for _, s := range secretList.Items {
+		_, acmcluster := s.Labels["apps.open-cluster-management.io/acm-cluster"]
+		if !acmcluster {
+			cluster := s.Data["name"]
+
+			if cluster != nil {
+				secrets := secretMap[string(cluster)]
+				if secrets == nil {
+					secrets = []*v1.Secret{}
+				}
+
+				secrets = append(secrets, &s)
+				secretMap[string(cluster)] = secrets
+			}
+		}
+	}
+
+	return secretMap, nil
 }
 
 // GetAllGitOpsClusters returns all GitOpsCluster CRs
@@ -705,24 +772,108 @@ func (r *ReconcileGitOpsCluster) GetManagedClusters(namespace string, placementr
 
 // AddManagedClustersToArgo copies a managed cluster secret from the managed cluster namespace to ArgoCD namespace
 func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
-	argoNamespace string,
-	managedClusters []*spokeclusterv1.ManagedCluster,
-	orphanSecretsList map[types.NamespacedName]string,
-	createBlankClusterSecrets bool) error {
+	gitOpsCluster *gitopsclusterV1beta1.GitOpsCluster, managedClusters []*spokeclusterv1.ManagedCluster,
+	orphanSecretsList map[types.NamespacedName]string, createBlankClusterSecrets bool) error {
 	returnErr := errors.New("")
 	errorOccurred := false
+	argoNamespace := gitOpsCluster.Spec.ArgoServer.ArgoNamespace
+
+	nonAcmClusterSecrets, err := r.GetAllNonAcmManagedClusterSecretsInArgo(argoNamespace)
+	if err != nil {
+		klog.Error("failed to get all non-acm managed cluster secrets. err: ", err.Error())
+
+		return err
+	}
 
 	for _, managedCluster := range managedClusters {
 		klog.Infof("adding managed cluster %s to gitops namespace %s", managedCluster.Name, argoNamespace)
 
-		secretName := managedCluster.Name + "-cluster-secret"
-		managedClusterSecretKey := types.NamespacedName{Name: secretName, Namespace: managedCluster.Name}
+		var newSecret *v1.Secret
 
-		managedClusterSecret := &v1.Secret{}
-		err := r.Get(context.TODO(), managedClusterSecretKey, managedClusterSecret)
+		// Check if there are existing non-acm created cluster secrets
+		if len(nonAcmClusterSecrets[managedCluster.Name]) > 0 {
+			returnErr = fmt.Errorf("founding existing non-ACM ArgoCD clusters secrets for cluster: %v", managedCluster)
+			klog.Error(returnErr.Error())
 
-		if err != nil && !createBlankClusterSecrets {
-			klog.Error("failed to get managed cluster secret. err: ", err.Error())
+			errorOccurred = true
+
+			continue
+		}
+
+		if createBlankClusterSecrets || gitOpsCluster.Spec.ManagedServiceAccountRef == "" {
+			secretName := managedCluster.Name + "-cluster-secret"
+			managedClusterSecretKey := types.NamespacedName{Name: secretName, Namespace: managedCluster.Name}
+
+			managedClusterSecret := &v1.Secret{}
+			err := r.Get(context.TODO(), managedClusterSecretKey, managedClusterSecret)
+
+			// managed cluster secret doesn't need to exist for pull model
+			if err != nil && !createBlankClusterSecrets {
+				klog.Error("failed to get managed cluster secret. err: ", err.Error())
+
+				errorOccurred = true
+				returnErr = err
+
+				continue
+			}
+
+			newSecret, err = r.CreateManagedClusterSecretInArgo(argoNamespace, managedClusterSecret, managedCluster, createBlankClusterSecrets)
+
+			if err != nil {
+				klog.Error("failed to create managed cluster secret. err: ", err.Error())
+
+				errorOccurred = true
+				returnErr = err
+
+				continue
+			}
+		} else {
+			klog.Infof("create cluster secret using managed service account: %s/%s", managedCluster.Name, gitOpsCluster.Spec.ManagedServiceAccountRef)
+
+			newSecret, err = r.CreateMangedClusterSecretFromManagedServiceAccount(argoNamespace, managedCluster, gitOpsCluster.Spec.ManagedServiceAccountRef)
+			if err != nil {
+				klog.Error("failed to create managed cluster secret. err: ", err.Error())
+
+				errorOccurred = true
+				returnErr = err
+
+				continue
+			}
+		}
+
+		existingManagedClusterSecret := &v1.Secret{}
+
+		err = r.Get(context.TODO(), types.NamespacedName{Name: newSecret.Name, Namespace: newSecret.Namespace}, existingManagedClusterSecret)
+		if err == nil {
+			klog.Infof("updating managed cluster secret in argo namespace: %v/%v", newSecret.Namespace, newSecret.Name)
+
+			newSecret = unionSecretData(newSecret, existingManagedClusterSecret)
+
+			err := r.Update(context.TODO(), newSecret)
+
+			if err != nil {
+				klog.Errorf("failed to update managed cluster secret. name: %v/%v, error: %v", newSecret.Namespace, newSecret.Name, err)
+
+				errorOccurred = true
+				returnErr = err
+
+				continue
+			}
+		} else if k8errors.IsNotFound(err) {
+			klog.Infof("creating managed cluster secret in argo namespace: %v/%v", newSecret.Namespace, newSecret.Name)
+
+			err := r.Create(context.TODO(), newSecret)
+
+			if err != nil {
+				klog.Errorf("failed to create managed cluster secret. name: %v/%v, error: %v", newSecret.Namespace, newSecret.Name, err)
+
+				errorOccurred = true
+				returnErr = err
+
+				continue
+			}
+		} else {
+			klog.Errorf("failed to get managed cluster secret. name: %v/%v, error: %v", newSecret.Namespace, newSecret.Name, err)
 
 			errorOccurred = true
 			returnErr = err
@@ -730,20 +881,8 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 			continue
 		}
 
-		err = r.CreateManagedClusterSecretInArgo(argoNamespace, managedClusterSecret, managedCluster, createBlankClusterSecrets)
-
-		if err != nil {
-			klog.Error("failed to create managed cluster secret. err: ", err.Error())
-
-			errorOccurred = true
-			returnErr = err
-
-			continue
-		}
-
-		// Since thie secret is now added to Argo, it is not orphan.
-		argoManagedClusterSecretKey := types.NamespacedName{Name: secretName, Namespace: argoNamespace}
-		delete(orphanSecretsList, argoManagedClusterSecretKey)
+		// Managed cluster secret successfully created/updated - remove from orphan list
+		delete(orphanSecretsList, client.ObjectKeyFromObject(newSecret))
 	}
 
 	if !errorOccurred {
@@ -755,7 +894,7 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 
 // CreateManagedClusterSecretInArgo creates a managed cluster secret with specific metadata in Argo namespace
 func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace string, managedClusterSecret *v1.Secret,
-	managedCluster *spokeclusterv1.ManagedCluster, createBlankClusterSecrets bool) error {
+	managedCluster *spokeclusterv1.ManagedCluster, createBlankClusterSecrets bool) (*v1.Secret, error) {
 	// create the new cluster secret in the argocd server namespace
 	var newSecret *v1.Secret
 
@@ -816,36 +955,99 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 		}
 	}
 
-	existingManagedClusterSecret := &v1.Secret{}
+	return newSecret, nil
+}
 
-	err := r.Get(context.TODO(), types.NamespacedName{Name: newSecret.Name, Namespace: argoNamespace}, existingManagedClusterSecret)
-	if err == nil {
-		klog.Infof("updating managed cluster secret in argo namespace: %v/%v", argoNamespace, managedClusterSecret.Name)
+func (r *ReconcileGitOpsCluster) CreateMangedClusterSecretFromManagedServiceAccount(argoNamespace string,
+	managedCluster *spokeclusterv1.ManagedCluster, managedServiceAccountRef string) (*v1.Secret, error) {
+	// Find managedserviceaccount in the managed cluster namespace
+	account := &authv1alpha1.ManagedServiceAccount{}
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: managedServiceAccountRef, Namespace: managedCluster.Name}, account); err != nil {
+		klog.Errorf("failed to get managed service account: %v/%v", managedCluster.Name, managedServiceAccountRef)
 
-		newSecret = unionSecretData(newSecret, existingManagedClusterSecret)
-
-		err := r.Update(context.TODO(), newSecret)
-
-		if err != nil {
-			klog.Errorf("failed to update managed cluster secret. name: %v/%v, error: %v", argoNamespace, managedClusterSecret.Name, err)
-			return err
-		}
+		return nil, err
 	}
 
-	if k8errors.IsNotFound(err) {
-		klog.Infof("creating managed cluster secret in argo namespace: %v/%v", argoNamespace, managedClusterSecret.Name)
+	// Get secret from managedserviceaccount
+	tokenSecretRef := account.Status.TokenSecretRef
+	if tokenSecretRef == nil {
+		err := fmt.Errorf("no token reference secret found in the managed service account: %v/%v", managedCluster.Name, managedServiceAccountRef)
+		klog.Error(err)
 
-		err := r.Create(context.TODO(), newSecret)
-
-		if err != nil {
-			klog.Errorf("failed to create managed cluster secret. name: %v/%v, error: %v", argoNamespace, managedClusterSecret.Name, err)
-			return err
-		}
+		return nil, err
 	}
 
-	klog.Errorf("failed to get managed cluster secret. name: %v/%v, error: %v", argoNamespace, newSecret.Name, err)
+	tokenSecret := &v1.Secret{}
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: tokenSecretRef.Name, Namespace: managedCluster.Name}, tokenSecret); err != nil {
+		klog.Errorf("failed to get token secret: %v/%v", managedCluster.Name, tokenSecretRef.Name)
 
-	return err
+		return nil, err
+	}
+
+	clusterSecretName := fmt.Sprintf("%v-%v-cluster-secret", managedCluster.Name, managedServiceAccountRef)
+
+	caCrt := base64.StdEncoding.EncodeToString(tokenSecret.Data["ca.crt"])
+	config := map[string]interface{}{
+		"bearerToken": string(tokenSecret.Data["token"]),
+		"tlsClientConfig": map[string]interface{}{
+			"insecure": false,
+			"caData":   caCrt,
+		},
+	}
+
+	encodedConfig, err := json.Marshal(config)
+	if err != nil {
+		klog.Error(err, "failed to encode data for the cluster secret")
+
+		return nil, err
+	}
+
+	clusterURL, err := getManagedClusterURL(managedCluster, string(tokenSecret.Data["token"]))
+	if err != nil {
+		klog.Error(err)
+
+		return nil, err
+	}
+
+	klog.Infof("managed cluster %v, URL: %v", managedCluster.Name, clusterURL)
+
+	// For use in label - remove the protocol and port (contains invalid characters for label)
+	strippedClusterURL := clusterURL
+
+	index := strings.Index(strippedClusterURL, "://")
+	if index > 0 {
+		strippedClusterURL = strippedClusterURL[index+3:]
+	}
+
+	index = strings.Index(strippedClusterURL, ":")
+	if index > 0 {
+		strippedClusterURL = strippedClusterURL[:index]
+	}
+
+	newSecret := &v1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      clusterSecretName,
+			Namespace: argoNamespace,
+			Labels: map[string]string{
+				"argocd.argoproj.io/secret-type":                 "cluster",
+				"apps.open-cluster-management.io/acm-cluster":    "true",
+				"apps.open-cluster-management.io/cluster-name":   managedCluster.Name,
+				"apps.open-cluster-management.io/cluster-server": fmt.Sprintf("%.63s", strippedClusterURL),
+			},
+		},
+		Type: "Opaque",
+		StringData: map[string]string{
+			"config": string(encodedConfig),
+			"name":   managedCluster.Name,
+			"server": clusterURL,
+		},
+	}
+
+	return newSecret, nil
 }
 
 func unionSecretData(newSecret, existingSecret *v1.Secret) *v1.Secret {
@@ -912,4 +1114,51 @@ func unionSecretData(newSecret, existingSecret *v1.Secret) *v1.Secret {
 	newSecret.StringData = newData
 
 	return newSecret
+}
+
+func getManagedClusterURL(managedCluster *spokeclusterv1.ManagedCluster, token string) (string, error) {
+	clientConfigs := managedCluster.Spec.ManagedClusterClientConfigs
+	if len(clientConfigs) == 0 {
+		err := fmt.Errorf("no client configs found for managed cluster: %v", managedCluster.Name)
+
+		return "", err
+	}
+
+	// If only one clientconfig, always return the first
+	if len(clientConfigs) == 1 {
+		return clientConfigs[0].URL, nil
+	}
+
+	for _, config := range clientConfigs {
+		req, err := http.NewRequest(http.MethodGet, config.URL, nil)
+		if err != nil {
+			klog.Infof("error building new http request to %v", config.URL)
+
+			continue
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Add("Authorization", "Bearer "+token)
+
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(config.CABundle)
+
+		httpClient := http.DefaultClient
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs: caCertPool,
+			},
+		}
+
+		_, err = httpClient.Do(req)
+		if err == nil {
+			return config.URL, nil
+		}
+
+		klog.Infof("error sending http request to %v, error: %v", config.URL, err.Error())
+	}
+
+	err := fmt.Errorf("failed to find an accessible URL for the managed cluster: %v", managedCluster.Name)
+
+	return "", err
 }

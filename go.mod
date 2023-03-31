@@ -17,7 +17,10 @@ require (
 	sigs.k8s.io/controller-runtime v0.12.3
 )
 
-require gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+require (
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	open-cluster-management.io/managed-serviceaccount v0.2.0 // indirect
+)
 
 require (
 	cloud.google.com/go/compute v1.7.0 // indirect

@@ -1139,6 +1139,8 @@ k8s.io/utils v0.0.0-20220725171434-9bab9ef40391 h1:1MPbIQv9SykLDytzVuV+Pl6V40NCQ
 k8s.io/utils v0.0.0-20220725171434-9bab9ef40391/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
 open-cluster-management.io/api v0.10.0 h1:B6/nwKO7cXDuKV5uJLjF/JUuPuiKsep08gfmAAWaKKc=
 open-cluster-management.io/api v0.10.0/go.mod h1:6BB/Y6r3hXlPjpJgDwIs6Ubxyx/kXXOg6D9Cntg1I9E=
+open-cluster-management.io/managed-serviceaccount v0.2.0 h1:39z8psBkm91AYnFkjZPcb3nD6Lgc9wIq2ASEyFuJzEA=
+open-cluster-management.io/managed-serviceaccount v0.2.0/go.mod h1:ujDY4XkzW56mGebytqc/S8rjyofS5NSlqUR/d+gA3uY=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
 rsc.io/quote/v3 v3.1.0/go.mod h1:yEA65RcK8LyAZtP9Kv3t0HmxON59tX3rD+tICJqUlj0=
 rsc.io/sampler v1.3.0/go.mod h1:T1hPZKmBbMNahiBKFy5HrXp6adAjACjK9JXDnKaTXpA=
