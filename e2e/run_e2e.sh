@@ -64,6 +64,8 @@ kubectl -n open-cluster-management get deploy
 ### GitOpsCluster
 echo "TEST GitOpsCluster"
 kubectl config use-context kind-hub
+# Add test label to cluster1 to test that labels are propagated
+kubectl label managedcluster cluster1 test-label=test-value
 kubectl apply -f examples/argocd/
 sleep 10s
 if kubectl -n argocd get gitopsclusters argo-ocm-importer -o yaml | grep successful; then
@@ -72,10 +74,25 @@ else
     echo "GitOpsCluster FAILED: status not successful"
     exit 1
 fi
-if kubectl -n argocd get secret cluster1-cluster-secret; then
+if [[ "$(kubectl -n argocd get secret -l=test-label=test-value -o jsonpath='{.items[0].metadata.name}')" == "cluster1-cluster-secret" ]]; then
     echo "GitOpsCluster: cluster1-cluster-secret created"
 else
     echo "GitOpsCluster FAILED: cluster1-cluster-secret not created"
+    exit 1
+fi
+# Add another test label to cluster1 to test that updated labels are propagated
+kubectl label managedcluster cluster1 test-label-2=test-value-2
+sleep 10s
+if kubectl -n argocd get gitopsclusters argo-ocm-importer -o yaml | grep successful; then
+    echo "GitOpsCluster: status successful"
+else
+    echo "GitOpsCluster FAILED: status not successful"
+    exit 1
+fi
+if [[ "$(kubectl -n argocd get secret -l=test-label-2=test-value-2 -o jsonpath='{.items[0].metadata.name}')" == "cluster1-cluster-secret" ]]; then
+    echo "GitOpsCluster: cluster1-cluster-secret updated"
+else
+    echo "GitOpsCluster FAILED: cluster1-cluster-secret not updated"
     exit 1
 fi
 
