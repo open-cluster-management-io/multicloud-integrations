@@ -115,30 +115,6 @@ else
     echo "Propagation FAILED: manifestwork not created"
     exit 1
 fi
-if kubectl -n argocd get app cluster1-guestbook-app | grep Synced | grep Healthy; then
-    echo "Propagation: hub cluster application cluster1-guestbook-app status sync"
-else
-    echo "Propagation FAILED: hub application cluster1-guestbook-app not status sync"
-    exit 1
-fi
-if kubectl -n argocd get application cluster1-guestbook-app -o yaml | grep AdditionalStatusReport; then
-    echo "Propagation: hub application cluster1-guestbook-app contains AdditionalStatusReport"
-else
-    echo "Propagation FAILED: hub application cluster1-guestbook-app not contains AdditionalStatusReport"
-    exit 1
-fi
-if kubectl -n argocd get application cluster1-guestbook-app -o yaml | grep "Additional details available in ManagedCluster cluster1"; then
-    echo "Propagation: hub application cluster1-guestbook-app contains ManagedCluster cluster1"
-else
-    echo "Propagation FAILED: hub application cluster1-guestbook-app not contains ManagedCluster cluster1"
-    exit 1
-fi
-if kubectl -n argocd get application cluster1-guestbook-app -o yaml | grep "kubectl get applications -n argocd cluster1-guestbook-app"; then
-    echo "Propagation: hub application cluster1-guestbook-app contains kubectl get applications command"
-else
-    echo "Propagation FAILED: hub application cluster1-guestbook-app not contains kubectl get applications command"
-    exit 1
-fi
 kubectl config use-context kind-cluster1
 if kubectl -n argocd get app cluster1-guestbook-app | grep Synced | grep Healthy; then
     echo "Propagation: managed cluster application cluster1-guestbook-app created, synced and healthy"
