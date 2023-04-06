@@ -96,17 +96,17 @@ func Add(mgr manager.Manager, interval int, resourceDir string) error {
 
 func (r *ReconcilePullModelAggregation) Start(ctx context.Context) error {
 	go wait.Until(func() {
-		r.houseKeeping()
+		r.houseKeeping(ctx)
 	}, time.Duration(r.Interval)*time.Second, ctx.Done())
 
 	return nil
 }
 
-func (r *ReconcilePullModelAggregation) houseKeeping() {
+func (r *ReconcilePullModelAggregation) houseKeeping(ctx context.Context) {
 	klog.Info("Start aggregating all ArgoCD application manifestworks per appset...")
 
 	// create or update all MulticlusterApplicationSetReport objects in the appset NS
-	err := r.generateAggregation()
+	err := r.generateAggregation(ctx)
 	if err != nil {
 		klog.Warning("error occurred while generating ArgoCD application aggregation, err: ", err)
 	}
@@ -123,7 +123,7 @@ func (r *ReconcilePullModelAggregation) houseKeeping() {
 	klog.Info("Finished cleaning all MultiClusterApplicationSet reports.")
 }
 
-func (r *ReconcilePullModelAggregation) generateAggregation() error {
+func (r *ReconcilePullModelAggregation) generateAggregation(ctx context.Context) error {
 	PrintMemUsage("Prepare to aggregate manifestwork statuses")
 
 	appSetClusterList := &v1.ManifestWorkList{}
@@ -196,6 +196,42 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 		appSetClusterStatusMap[appSetKey][clusterKey] = OverallStatus{
 			HealthStatus: healthStatus,
 			SyncStatus:   syncStatus,
+		}
+
+		// Populate the dormant Application status with health and sync status
+		applicationNamespace := manifestWork.Annotations["apps.open-cluster-management.io/hub-application-namespace"]
+		applicationName := manifestWork.Annotations["apps.open-cluster-management.io/hub-application-name"]
+		application := argov1alpha1.Application{}
+
+		if applicationNamespace != "" && applicationName != "" {
+			klog.Infof("updating Application %s/%s status", applicationNamespace, applicationName)
+
+			if err := r.Get(ctx, types.NamespacedName{Namespace: applicationNamespace, Name: applicationName}, &application); err != nil {
+				klog.Warningf("unable to fetch Application: %s", err.Error())
+			} else {
+				newStatus := application.Status.DeepCopy()
+				newStatus.Conditions = []argov1alpha1.ApplicationCondition{{
+					Type: "AdditionalStatusReport",
+					Message: fmt.Sprintf("kubectl get multiclusterapplicationsetreports -n %s %s"+
+						"\nAdditional details available in ManagedCluster %s"+
+						"\nkubectl get applications -n %s %s",
+						applicationNamespace, appsetName,
+						manifestWork.Namespace,
+						applicationNamespace, applicationName),
+				}}
+				if syncStatus != "" {
+					newStatus.Sync.Status = argov1alpha1.SyncStatusCode(syncStatus)
+				}
+				if healthStatus != "" {
+					newStatus.Health.Status = healthStatus
+				}
+				if !equality.Semantic.DeepEqual(application.Status, newStatus) {
+					application.Status = *newStatus
+					if err = r.Client.Update(ctx, &application, &client.UpdateOptions{}); err != nil {
+						klog.Warningf("unable to update Application status: %s", err.Error())
+					}
+				}
+			}
 		}
 	}
 
