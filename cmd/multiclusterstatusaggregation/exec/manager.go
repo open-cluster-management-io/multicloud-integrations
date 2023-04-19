@@ -17,7 +17,6 @@ package exec
 import (
 	"fmt"
 	"os"
-	"time"
 
 	manifestWorkV1 "open-cluster-management.io/api/work/v1"
 	appsubapi "open-cluster-management.io/multicloud-integrations/pkg/apis"
@@ -70,19 +69,20 @@ func RunManager() {
 		}
 	}
 
-	leaseDuration := time.Duration(options.LeaderElectionLeaseDurationSeconds) * time.Second
-	renewDeadline := time.Duration(options.RenewDeadlineSeconds) * time.Second
-	retryPeriod := time.Duration(options.RetryPeriodSeconds) * time.Second
+	klog.Info("Leader election settings",
+		"leaseDuration", options.LeaderElectionLeaseDuration,
+		"renewDeadline", options.LeaderElectionRenewDeadline,
+		"retryPeriod", options.LeaderElectionRetryPeriod)
+
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
 		Port:                    operatorMetricsPort,
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "multicloud-operators-multiclusterstatusaggregation-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
-		LeaseDuration:           &leaseDuration,
-		RenewDeadline:           &renewDeadline,
-		RetryPeriod:             &retryPeriod,
-		NewClient:               NewNonCachingClient,
+		LeaseDuration:           &options.LeaderElectionLeaseDuration,
+		RenewDeadline:           &options.LeaderElectionRenewDeadline,
+		RetryPeriod:             &options.LeaderElectionRetryPeriod,
 	})
 
 	if err != nil {

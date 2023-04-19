@@ -17,7 +17,6 @@ package exec
 import (
 	"fmt"
 	"os"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -51,9 +50,11 @@ func RunManager() {
 		klog.Info("LeaderElection disabled as not running in a cluster")
 	}
 
-	leaseDuration := time.Duration(options.LeaderElectionLeaseDurationSeconds) * time.Second
-	renewDeadline := time.Duration(options.RenewDeadlineSeconds) * time.Second
-	retryPeriod := time.Duration(options.RetryPeriodSeconds) * time.Second
+	klog.Info("Leader election settings",
+		"leaseDuration", options.LeaderElectionLeaseDuration,
+		"renewDeadline", options.LeaderElectionRenewDeadline,
+		"retryPeriod", options.LeaderElectionRetryPeriod)
+
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
@@ -61,9 +62,9 @@ func RunManager() {
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "multicloud-operators-gitopssyncresc-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
-		LeaseDuration:           &leaseDuration,
-		RenewDeadline:           &renewDeadline,
-		RetryPeriod:             &retryPeriod,
+		LeaseDuration:           &options.LeaderElectionLeaseDuration,
+		RenewDeadline:           &options.LeaderElectionRenewDeadline,
+		RetryPeriod:             &options.LeaderElectionRetryPeriod,
 	})
 
 	if err != nil {
