@@ -15,26 +15,28 @@
 package exec
 
 import (
+	"time"
+
 	pflag "github.com/spf13/pflag"
 )
 
 // GitOpsClusterCMDOptions for command line flag parsing
 type GitOpsSyncRescCMDOptions struct {
-	MetricsAddr                        string
-	SyncInterval                       int
-	AppSetResourceDir                  string
-	LeaderElectionLeaseDurationSeconds int
-	RenewDeadlineSeconds               int
-	RetryPeriodSeconds                 int
+	MetricsAddr                 string
+	SyncInterval                int
+	AppSetResourceDir           string
+	LeaderElectionLeaseDuration time.Duration
+	LeaderElectionRenewDeadline time.Duration
+	LeaderElectionRetryPeriod   time.Duration
 }
 
 var options = GitOpsSyncRescCMDOptions{
-	MetricsAddr:                        "",
-	SyncInterval:                       10,
-	AppSetResourceDir:                  "/var/appset-resc",
-	LeaderElectionLeaseDurationSeconds: 137,
-	RenewDeadlineSeconds:               107,
-	RetryPeriodSeconds:                 26,
+	MetricsAddr:                 "",
+	SyncInterval:                10,
+	AppSetResourceDir:           "/var/appset-resc",
+	LeaderElectionLeaseDuration: 137 * time.Second,
+	LeaderElectionRenewDeadline: 107 * time.Second,
+	LeaderElectionRetryPeriod:   26 * time.Second,
 }
 
 // ProcessFlags parses command line parameters into options
@@ -62,24 +64,31 @@ func ProcessFlags() {
 		"The directory for persisting appset resource files.",
 	)
 
-	flag.IntVar(
-		&options.LeaderElectionLeaseDurationSeconds,
+	flag.DurationVar(
+		&options.LeaderElectionLeaseDuration,
 		"leader-election-lease-duration",
-		options.LeaderElectionLeaseDurationSeconds,
-		"The leader election lease duration in seconds.",
+		options.LeaderElectionLeaseDuration,
+		"The duration that non-leader candidates will wait after observing a leadership "+
+			"renewal until attempting to acquire leadership of a led but unrenewed leader "+
+			"slot. This is effectively the maximum duration that a leader can be stopped "+
+			"before it is replaced by another candidate. This is only applicable if leader "+
+			"election is enabled.",
 	)
 
-	flag.IntVar(
-		&options.RenewDeadlineSeconds,
-		"renew-deadline",
-		options.RenewDeadlineSeconds,
-		"The renew deadline in seconds.",
+	flag.DurationVar(
+		&options.LeaderElectionRenewDeadline,
+		"leader-election-renew-deadline",
+		options.LeaderElectionRenewDeadline,
+		"The interval between attempts by the acting master to renew a leadership slot "+
+			"before it stops leading. This must be less than or equal to the lease duration. "+
+			"This is only applicable if leader election is enabled.",
 	)
 
-	flag.IntVar(
-		&options.RetryPeriodSeconds,
-		"retry-period",
-		options.RetryPeriodSeconds,
-		"The retry period in seconds.",
+	flag.DurationVar(
+		&options.LeaderElectionRetryPeriod,
+		"leader-election-retry-period",
+		options.LeaderElectionRetryPeriod,
+		"The duration the clients should wait between attempting acquisition and renewal "+
+			"of a leadership. This is only applicable if leader election is enabled.",
 	)
 }

@@ -17,7 +17,6 @@ package exec
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/IBM/controller-filtered-cache/filteredcache"
 	v1 "k8s.io/api/core/v1"
@@ -60,9 +59,11 @@ func RunManager() {
 		},
 	}
 
-	leaseDuration := time.Duration(options.LeaderElectionLeaseDurationSeconds) * time.Second
-	renewDeadline := time.Duration(options.RenewDeadlineSeconds) * time.Second
-	retryPeriod := time.Duration(options.RetryPeriodSeconds) * time.Second
+	klog.Info("Leader election settings",
+		"leaseDuration", options.LeaderElectionLeaseDuration,
+		"renewDeadline", options.LeaderElectionRenewDeadline,
+		"retryPeriod", options.LeaderElectionRetryPeriod)
+
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
@@ -71,9 +72,9 @@ func RunManager() {
 		LeaderElectionID:        "multicloud-operators-gitopscluster-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
 		NewCache:                filteredcache.NewFilteredCacheBuilder(filteredSecretMap),
-		LeaseDuration:           &leaseDuration,
-		RenewDeadline:           &renewDeadline,
-		RetryPeriod:             &retryPeriod,
+		LeaseDuration:           &options.LeaderElectionLeaseDuration,
+		RenewDeadline:           &options.LeaderElectionRenewDeadline,
+		RetryPeriod:             &options.LeaderElectionRetryPeriod,
 	})
 
 	if err != nil {
