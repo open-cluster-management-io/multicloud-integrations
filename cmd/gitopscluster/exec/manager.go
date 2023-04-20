@@ -27,9 +27,12 @@ import (
 	"open-cluster-management.io/multicloud-integrations/pkg/controller"
 	"open-cluster-management.io/multicloud-integrations/pkg/utils"
 
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
@@ -75,6 +78,7 @@ func RunManager() {
 		LeaseDuration:           &options.LeaderElectionLeaseDuration,
 		RenewDeadline:           &options.LeaderElectionRenewDeadline,
 		RetryPeriod:             &options.LeaderElectionRetryPeriod,
+		NewClient:               NewNonCachingClient,
 	})
 
 	if err != nil {
@@ -123,4 +127,8 @@ func RunManager() {
 		klog.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}
+}
+
+func NewNonCachingClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
+	return client.New(config, client.Options{Scheme: scheme.Scheme})
 }

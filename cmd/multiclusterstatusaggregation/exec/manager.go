@@ -139,5 +139,5 @@ func RunManager() {
 }
 
 func NewNonCachingClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
-	return client.New(config, client.Options{})
+	return client.New(config, client.Options{Scheme: clientgoscheme.Scheme})
 }
