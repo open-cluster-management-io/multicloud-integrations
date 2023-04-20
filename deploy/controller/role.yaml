@@ -54,6 +54,7 @@ rules:
       - subscriptions/status
       - subscriptionstatuses
       - subscriptionreports
+      - multiclusterapplicationsetreports
   - verbs:
       - get
       - list
@@ -68,6 +69,7 @@ rules:
     resources:
       - applications
       - applications/status
+      - applicationsets
   - verbs:
       - get
       - list
