@@ -50,6 +50,7 @@ type PropagationCMDOptions struct {
 	LeaderElectionLeaseDuration time.Duration
 	LeaderElectionRenewDeadline time.Duration
 	LeaderElectionRetryPeriod   time.Duration
+	MaxConcurrentReconciles     int
 }
 
 var options = PropagationCMDOptions{
@@ -57,6 +58,7 @@ var options = PropagationCMDOptions{
 	LeaderElectionLeaseDuration: 137 * time.Second,
 	LeaderElectionRenewDeadline: 107 * time.Second,
 	LeaderElectionRetryPeriod:   26 * time.Second,
+	MaxConcurrentReconciles:     10,
 }
 
 var (
@@ -110,6 +112,14 @@ func main() {
 		"The duration the clients should wait between attempting acquisition and renewal "+
 			"of a leadership. This is only applicable if leader election is enabled.",
 	)
+
+	flag.IntVar(
+		&options.MaxConcurrentReconciles,
+		"max-concurrent-reconciles",
+		options.MaxConcurrentReconciles,
+		"The maxium concurrent reconciles the controller can run.",
+	)
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -121,7 +131,8 @@ func main() {
 	setupLog.Info("Leader election settings",
 		"leaseDuration", options.LeaderElectionLeaseDuration,
 		"renewDeadline", options.LeaderElectionRenewDeadline,
-		"retryPeriod", options.LeaderElectionRetryPeriod)
+		"retryPeriod", options.LeaderElectionRetryPeriod,
+		"maxConcurrentReconciles", options.MaxConcurrentReconciles)
 
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -163,7 +174,7 @@ func main() {
 	if err = (&application.ApplicationReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, options.MaxConcurrentReconciles); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Application")
 		os.Exit(1)
 	}
