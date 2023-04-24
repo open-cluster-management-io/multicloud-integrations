@@ -90,7 +90,7 @@ var _ = BeforeSuite(func() {
 	err = (&ApplicationReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
-	}).SetupWithManager(k8sManager)
+	}).SetupWithManager(k8sManager, 10)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {
