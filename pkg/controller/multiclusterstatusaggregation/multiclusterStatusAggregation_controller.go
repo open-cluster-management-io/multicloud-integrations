@@ -131,8 +131,6 @@ func (r *ReconcilePullModelAggregation) generateAggregation(ctx context.Context)
 		continueToken string
 	)
 
-	appSetClusterList := &v1.ManifestWorkList{}
-
 	appSetRequirement, err := labels.NewRequirement("apps.open-cluster-management.io/application-set", selection.Exists, []string{})
 	if err != nil {
 		klog.Errorf("bad requirement: %v", err)
@@ -141,7 +139,12 @@ func (r *ReconcilePullModelAggregation) generateAggregation(ctx context.Context)
 	appSetSelector := labels.NewSelector()
 	appSetSelector = appSetSelector.Add(*appSetRequirement)
 
+	// create a map for containing overallstatus per cluster, appset. 2 Keys Appset NamespacedName, Cluster Name
+	appSetClusterStatusMap := make(map[AppSet]map[Cluster]OverallStatus)
+
 	for {
+		appSetClusterList := &v1.ManifestWorkList{}
+
 		listopts := &client.ListOptions{
 			LabelSelector: appSetSelector,
 			Limit:         limit,
@@ -164,9 +167,6 @@ func (r *ReconcilePullModelAggregation) generateAggregation(ctx context.Context)
 		klog.Infof("cluster aggregation Count: %v", appSetClusterCount)
 
 		PrintMemUsage("Initialize AppSet Map.")
-
-		// create a map for containing overallstatus per cluster, appset. 2 Keys Appset NamespacedName, Cluster Name
-		appSetClusterStatusMap := make(map[AppSet]map[Cluster]OverallStatus)
 
 		for _, manifestWork := range appSetClusterList.Items {
 			appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["apps.open-cluster-management.io/hosting-applicationset"])
@@ -244,24 +244,22 @@ func (r *ReconcilePullModelAggregation) generateAggregation(ctx context.Context)
 			}
 		}
 
-		PrintMemUsage("AppSet Map generated.")
 		klog.V(1).Infof("AppSet Map: %v", appSetClusterStatusMap)
 
-		// generate report from both propagation and resource sync controllers.
-		r.generateAppSetReport(appSetClusterStatusMap)
-
-		PrintMemUsage("AppSet Report refreshed.")
-
-		continueToken = appSetClusterList.GetContinue()
-
-		appSetClusterList = nil
-
-		runtime.GC()
-
-		if continueToken == "" {
+		if continueToken = appSetClusterList.GetContinue(); continueToken == "" {
 			break
 		}
 	}
+
+	PrintMemUsage("AppSet Map generated.")
+	klog.V(1).Infof("Final AppSet Map: %v", appSetClusterStatusMap)
+
+	// generate report from both propagation and resource sync controllers.
+	r.generateAppSetReport(appSetClusterStatusMap)
+
+	runtime.GC()
+
+	PrintMemUsage("AppSet Report refreshed.")
 
 	return nil
 }
