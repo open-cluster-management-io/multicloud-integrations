@@ -396,22 +396,6 @@ var (
 		},
 	}
 
-	// Sample app
-	sampleApp = argov1alpha1.Application{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Application",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sample-app",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSpec{
-			Project: "default",
-			Source:  &argov1alpha1.ApplicationSource{RepoURL: "dummy"},
-		},
-	}
-
 	// Resource list yaml
 
 	bgdAppData5 = `statuses:
@@ -632,7 +616,6 @@ func TestReconcilePullModel(t *testing.T) {
 	time.Sleep(4 * time.Second)
 
 	// Test 4: Update manifestwork status to be synced & progressing. No existing MulticlusterApplicationSetReport
-	g.Expect(c.Create(ctx, &sampleApp)).NotTo(HaveOccurred())
 	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "cluster1", Name: "cluster1-bgd-app-4"}, mw)).NotTo(HaveOccurred())
 
 	newMw = mw.DeepCopy()
@@ -673,9 +656,6 @@ func TestReconcilePullModel(t *testing.T) {
 			Conditions:   nil,
 		},
 	}))
-	g.Expect(c.Get(ctx, types.NamespacedName{Namespace: "openshift-gitops", Name: "sample-app"}, &sampleApp)).NotTo(HaveOccurred())
-	g.Expect(sampleApp.Status.Sync.Status).To(Equal(argov1alpha1.SyncStatusCode("Synced")))
-	g.Expect(sampleApp.Status.Health.Status).To(Equal("Progressing"))
 }
 
 func TestParseNamespacedName(t *testing.T) {
