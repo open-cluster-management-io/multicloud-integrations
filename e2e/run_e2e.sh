@@ -115,6 +115,12 @@ else
     echo "Propagation FAILED: manifestwork not created"
     exit 1
 fi
+if kubectl -n cluster1 get manifestwork -o yaml | grep ed58e4a1479ef2d7fb1a60bc2b7300100f262779; then
+    echo "Propagation: manifestwork contains appSet hash"
+else
+    echo "Propagation FAILED: manifestwork does not appSet hash"
+    exit 1
+fi
 kubectl config use-context kind-cluster1
 if kubectl -n argocd get app cluster1-guestbook-app | grep Synced | grep Healthy; then
     echo "Propagation: managed cluster application cluster1-guestbook-app created, synced and healthy"

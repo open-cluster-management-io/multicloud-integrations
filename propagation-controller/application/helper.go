@@ -17,6 +17,8 @@ limitations under the License.
 package application
 
 import (
+	"crypto/sha1" // #nosec G505 not used for encryption
+	"encoding/hex"
 	"strconv"
 	"strings"
 
@@ -92,6 +94,19 @@ func generateManifestWorkName(application argov1alpha1.Application) string {
 	return application.Name + "-" + string(application.UID)[0:5]
 }
 
+// GenerateManifestWorkAppSetHashLabelValue returns the sha1 hash value of appSet namespace and name
+func GenerateManifestWorkAppSetHashLabelValue(appSetNamespace, appSetName string) (string, error) {
+	preHash := appSetNamespace + "/" + appSetName
+	h := sha1.New() // #nosec G401 not used for encryption
+	_, err := h.Write([]byte(preHash))
+
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 // getAppSetOwnerName returns the applicationSet resource name if the given application contains an applicationSet owner
 func getAppSetOwnerName(application argov1alpha1.Application) string {
 	if len(application.OwnerReferences) > 0 {
@@ -162,7 +177,7 @@ func prepareApplicationForWorkPayload(application argov1alpha1.Application) argo
 // With the status sync feedback of Application's health status and sync status.
 // The Application payload Spec Destination values are modified so that the Application is always performing in-cluster resource deployments.
 // If the Application is generated from an ApplicationSet, custom label and annotation are inserted.
-func generateManifestWork(name, namespace string, application argov1alpha1.Application) *workv1.ManifestWork {
+func generateManifestWork(name, namespace string, application argov1alpha1.Application) (*workv1.ManifestWork, error) {
 	var workLabels map[string]string
 
 	workAnnos := map[string]string{
@@ -172,13 +187,20 @@ func generateManifestWork(name, namespace string, application argov1alpha1.Appli
 
 	appSetOwnerName := getAppSetOwnerName(application)
 	if appSetOwnerName != "" {
-		workLabels = map[string]string{LabelKeyAppSet: strconv.FormatBool(true)}
+		appSetHash, err := GenerateManifestWorkAppSetHashLabelValue(application.Namespace, appSetOwnerName)
+		if err != nil {
+			return nil, err
+		}
+
+		workLabels = map[string]string{
+			LabelKeyAppSet:     strconv.FormatBool(true),
+			LabelKeyAppSetHash: appSetHash}
 		workAnnos[AnnotationKeyAppSet] = application.Namespace + "/" + appSetOwnerName
 	}
 
 	application = prepareApplicationForWorkPayload(application)
 
-	return &workv1.ManifestWork{ // TODO use OCM API helper to generate manifest work.
+	return &workv1.ManifestWork{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
@@ -206,5 +228,5 @@ func generateManifestWork(name, namespace string, application argov1alpha1.Appli
 				},
 			},
 		},
-	}
+	}, nil
 }

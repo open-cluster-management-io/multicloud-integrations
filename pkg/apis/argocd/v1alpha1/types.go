@@ -370,7 +370,7 @@ type OperationState struct {
 	// Operation is the original requested operation
 	Operation Operation `json:"operation" protobuf:"bytes,1,opt,name=operation"`
 	// Phase is the current phase of the operation
-	// Phase synccommon.OperationPhase `json:"phase" protobuf:"bytes,2,opt,name=phase"`
+	Phase OperationPhase `json:"phase" protobuf:"bytes,2,opt,name=phase"`
 	// Message holds any pertinent messages when attempting to perform operation (typically errors).
 	Message string `json:"message,omitempty" protobuf:"bytes,3,opt,name=message"`
 	// SyncResult is the result of a Sync operation
@@ -642,6 +642,12 @@ type HealthStatus struct {
 	// Message is a human-readable informational message describing the health status
 	Message string `json:"message,omitempty" protobuf:"bytes,2,opt,name=message"`
 }
+
+type OperationPhase string
+
+const (
+	OperationRunning OperationPhase = "Running"
+)
 
 // InfoItem contains arbitrary, human readable information about an application
 type InfoItem struct {
