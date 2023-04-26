@@ -83,6 +83,7 @@ func RunManager() {
 		LeaseDuration:           &options.LeaderElectionLeaseDuration,
 		RenewDeadline:           &options.LeaderElectionRenewDeadline,
 		RetryPeriod:             &options.LeaderElectionRetryPeriod,
+		NewClient:               NewNonCachingClient,
 	})
 
 	if err != nil {
