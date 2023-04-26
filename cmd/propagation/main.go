@@ -179,6 +179,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&application.ApplicationStatusReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create application status controller", "application status controller", "Application")
+		os.Exit(1)
+	}
+
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
