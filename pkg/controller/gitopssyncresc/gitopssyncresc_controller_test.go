@@ -48,6 +48,7 @@ const responseData1 = `
 				   "apigroup":"argoproj.io",
 				   "apiversion":"v1alpha1",
 				   "applicationSet":"",
+				   "cluster":"cluster1",
 				   "chart":"nginx-ingress",
 				   "healthStatus":"Missing",
 				   "kind":"Application",
@@ -167,16 +168,29 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 
 	appReportsMap := make(map[string]*appsetreport.MulticlusterApplicationSetReport)
 
-	appset1 := make(map[string]interface{})
-	appset1["namespace"] = "test-NS1"
-	appset1["name"] = "app1"
-	appset1["_hostingResource"] = "ApplicationSet/gitops/appset1"
-	appset1["apigroup"] = "argoproj.io"
-	appset1["apiversion"] = "v1alpha1"
-	appset1["_uid"] = "cluster1/abc"
-	appset1["_conditionSyncError"] = "blah reason: something's not right..."
-	appset1["_conditionOperationError"] = "ah reason: something's not right ok ..."
-	appset1["_conditionSharedResourceWarning"] = "I think it crashed"
+	appset1cluster1 := make(map[string]interface{})
+	appset1cluster1["namespace"] = "test-NS1"
+	appset1cluster1["name"] = "app1"
+	appset1cluster1["_hostingResource"] = "ApplicationSet/gitops/appset1"
+	appset1cluster1["apigroup"] = "argoproj.io"
+	appset1cluster1["apiversion"] = "v1alpha1"
+	appset1cluster1["_uid"] = "cluster1/abc"
+	appset1cluster1["_conditionSyncError"] = "blah reason: something's not right..."
+	appset1cluster1["_conditionOperationError"] = "ah reason: something's not right ok ..."
+	appset1cluster1["_conditionSharedResourceWarning"] = "I think it crashed"
+	appset1cluster1["cluster"] = "cluster1"
+
+	appset1cluster2 := make(map[string]interface{})
+	appset1cluster2["namespace"] = "test-NS1"
+	appset1cluster2["name"] = "app1"
+	appset1cluster2["_hostingResource"] = "ApplicationSet/gitops/appset1"
+	appset1cluster2["apigroup"] = "argoproj.io"
+	appset1cluster2["apiversion"] = "v1alpha1"
+	appset1cluster2["_uid"] = "cluster1/abc"
+	appset1cluster2["_conditionSyncError"] = "blah reason: something's not right..."
+	appset1cluster2["_conditionOperationError"] = "ah reason: something's not right ok ..."
+	appset1cluster2["_conditionSharedResourceWarning"] = "I think it crashed"
+	appset1cluster2["cluster"] = "cluster2"
 
 	appset1Resources1 := make(map[string]interface{})
 	appset1Resources1["kind"] = "Service"
@@ -209,11 +223,13 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	related3 := make(map[string]interface{})
 	related3["kind"] = "Deployment"
 	related3["items"] = []interface{}{appset1Resources3}
-	appset1["related"] = []interface{}{related1, related2, related3}
+
+	appset1cluster1["related"] = []interface{}{related1, related2, related3}
+	appset1cluster2["related"] = []interface{}{related1, related2, related3}
 
 	managedClustersAppNameMap := make(map[string]map[string]string)
-	c1ResourceListMap := getResourceMapList(appset1["related"].([]interface{}), "cluster1")
-	err := synResc.createOrUpdateAppSetReportConditions(appReportsMap, appset1, "cluster1", managedClustersAppNameMap)
+	c1ResourceListMap := getResourceMapList(appset1cluster1["related"].([]interface{}), "cluster1")
+	err := synResc.createOrUpdateAppSetReportConditions(appReportsMap, appset1cluster1, managedClustersAppNameMap)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(appReportsMap["gitops_appset1"]).NotTo(gomega.BeNil())
 	g.Expect(appReportsMap["gitops_appset1"].GetName()).To(gomega.Equal("gitops_appset1"))
@@ -232,8 +248,8 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	g.Expect(managedClustersAppNameMap["appset1"]["cluster1"], "test-NS1_app1")
 
 	// Add to same appset from cluster2
-	c2ResourceListMap := getResourceMapList(appset1["related"].([]interface{}), "cluster2")
-	err = synResc.createOrUpdateAppSetReportConditions(appReportsMap, appset1, "cluster2", managedClustersAppNameMap)
+	c2ResourceListMap := getResourceMapList(appset1cluster2["related"].([]interface{}), "cluster2")
+	err = synResc.createOrUpdateAppSetReportConditions(appReportsMap, appset1cluster2, managedClustersAppNameMap)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	g.Expect(len(appReportsMap["gitops_appset1"].Statuses.ClusterConditions)).To(gomega.Equal(2))
 	g.Expect(len(c2ResourceListMap)).To(gomega.Equal(1))
