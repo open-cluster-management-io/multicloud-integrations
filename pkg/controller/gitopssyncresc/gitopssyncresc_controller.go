@@ -157,8 +157,24 @@ func (r *GitOpsSyncResource) syncResources() error {
 	// Mapping of the app name for each cluster of an appset
 	managedClustersAppNameMap := make(map[string]map[string]string)
 
-	for _, managedcluster := range managedclusters {
-		items, _, err := r.getArgoAppsFromSearch(managedcluster.GetName(), "", "")
+	mangedClusterTotal := len(managedclusters)
+	iManagedCluster := 0
+
+	for iManagedCluster < mangedClusterTotal {
+		queryManagedClusters := []clusterv1.ManagedCluster{}
+		queryManagedClustersStr := []string{}
+
+		for len(queryManagedClusters) < 20 && iManagedCluster < mangedClusterTotal {
+			// Ignore local-cluster
+			if managedclusters[iManagedCluster].Name != "local-cluster" {
+				queryManagedClusters = append(queryManagedClusters, managedclusters[iManagedCluster])
+				queryManagedClustersStr = append(queryManagedClustersStr, managedclusters[iManagedCluster].Name)
+			}
+
+			iManagedCluster++
+		}
+
+		items, _, err := r.getArgoAppsFromSearch(queryManagedClustersStr, "", "")
 		if err != nil {
 			return err
 		}
@@ -167,12 +183,12 @@ func (r *GitOpsSyncResource) syncResources() error {
 			if itemmap, ok := item.(map[string]interface{}); ok {
 				klog.V(1).Info(fmt.Sprintf("item: %v", itemmap))
 
-				_ = r.createOrUpdateAppSetReportConditions(appReportsMap, itemmap, managedcluster.Name, managedClustersAppNameMap)
+				_ = r.createOrUpdateAppSetReportConditions(appReportsMap, itemmap, managedClustersAppNameMap)
 			}
 		}
 	}
 
-	klog.Infof("managedClustersAppNameMap: %v", managedClustersAppNameMap)
+	klog.V(1).Infof("managedClustersAppNameMap: %v", managedClustersAppNameMap)
 
 	// Add resource to the AppSet report
 	for _, v := range appReportsMap {
@@ -183,7 +199,7 @@ func (r *GitOpsSyncResource) syncResources() error {
 		for managedClusterName, appKey := range managedClustersAppNameMap[v.Name] {
 			appNsn := strings.Split(appKey, "_")
 
-			_, related, err := r.getArgoAppsFromSearch(managedClusterName, appNsn[0], appNsn[1])
+			_, related, err := r.getArgoAppsFromSearch([]string{managedClusterName}, appNsn[0], appNsn[1])
 			if err != nil {
 				klog.Infof("failed to get app (%v/%v) from cluster: %v, err:%v", appNsn[0], appNsn[1], managedClusterName, err.Error())
 				continue
@@ -240,9 +256,9 @@ func (r *GitOpsSyncResource) getSearchURL() (string, error) {
 	return fmt.Sprintf("https://%v.%v.svc.cluster.local:%v/searchapi/graphql", SearchServiceName, searchNs, targetPort), nil
 }
 
-func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName string) ([]interface{}, []interface{}, error) {
-	klog.Info(fmt.Sprintf("Start getting argo application for cluster: %v, app: %v/%v", cluster, appsetNs, appsetName))
-	defer klog.Info(fmt.Sprintf("Finished getting argo application for cluster: %v, app: %v/%v", cluster, appsetNs, appsetName))
+func (r *GitOpsSyncResource) getArgoAppsFromSearch(clusters []string, appsetNs, appsetName string) ([]interface{}, []interface{}, error) {
+	klog.Info(fmt.Sprintf("Start getting argo application for cluster: %v, app: %v/%v", clusters, appsetNs, appsetName))
+	defer klog.Info(fmt.Sprintf("Finished getting argo application for cluster: %v, app: %v/%v", clusters, appsetNs, appsetName))
 
 	httpClient := http.DefaultClient
 
@@ -273,6 +289,11 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 
 	klog.Info(fmt.Sprintf("search url: %v", routeURL))
 
+	clusterFilter := []*string{}
+	for i := range clusters {
+		clusterFilter = append(clusterFilter, &clusters[i])
+	}
+
 	// Build search body
 	kind := "Application"
 	apigroup := "argoproj.io"
@@ -289,7 +310,7 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 			},
 			{
 				Property: "cluster",
-				Values:   []*string{&cluster},
+				Values:   clusterFilter,
 			},
 		},
 		Limit: &limit,
@@ -304,8 +325,13 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 	searchVars["input"] = []*model.SearchInput{searchInput}
 
 	searchQuery := make(map[string]interface{})
-	searchQuery["query"] = "query mySearch($input: [SearchInput]) {searchResult: search(input: $input) {items, related { kind count items }, count}}"
 	searchQuery["variables"] = searchVars
+
+	if appsetNs != "" && appsetName != "" {
+		searchQuery["query"] = "query mySearch($input: [SearchInput]) {searchResult: search(input: $input) {items, related { kind count items }, count}}"
+	} else {
+		searchQuery["query"] = "query mySearch($input: [SearchInput]) {searchResult: search(input: $input) {items, count}}"
+	}
 
 	postBody, _ := json.Marshal(searchQuery)
 	klog.V(1).Infof("search: %v", string(postBody[:]))
@@ -346,10 +372,11 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(cluster, appsetNs, appsetName
 }
 
 func (r *GitOpsSyncResource) createOrUpdateAppSetReportConditions(appReportsMap map[string]*appsetreport.MulticlusterApplicationSetReport,
-	appsetResource map[string]interface{}, managedClusterName string, managedClusterAppNameMap map[string]map[string]string) error {
+	appsetResource map[string]interface{}, managedClusterAppNameMap map[string]map[string]string) error {
 	appNs := appsetResource["namespace"].(string)
 	appName := appsetResource["name"].(string)
 	hostingAppsetName := appsetResource["_hostingResource"]
+	managedClusterName := appsetResource["cluster"].(string)
 
 	// Skip application that don't belong to an appset
 	if hostingAppsetName == nil {
