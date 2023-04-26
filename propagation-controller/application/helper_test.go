@@ -429,7 +429,10 @@ func Test_generateManifestWork(t *testing.T) {
 				application: app,
 			},
 			want: results{
-				workLabel: map[string]string{LabelKeyAppSet: "true"},
+				workLabel: map[string]string{
+					LabelKeyAppSet:     "true",
+					LabelKeyAppSetHash: "654ef46669ce896863583d1940559d145b39032b",
+				},
 				workAnno: map[string]string{
 					AnnotationKeyAppSet:                  "argocd/appset1",
 					AnnotationKeyHubApplicationNamespace: "argocd",
@@ -440,12 +443,50 @@ func Test_generateManifestWork(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := generateManifestWork(tt.args.name, tt.args.namespace, tt.args.application)
+			got, err := generateManifestWork(tt.args.name, tt.args.namespace, tt.args.application)
+			if err != nil {
+				t.Errorf("generateManifestWork() = got err %v", err)
+			}
 			if !reflect.DeepEqual(got.Annotations, tt.want.workAnno) {
 				t.Errorf("generateManifestWork() = %v, want %v", got.Annotations, tt.want.workAnno)
 			}
 			if !reflect.DeepEqual(got.Labels, tt.want.workLabel) {
 				t.Errorf("generateManifestWork() = %v, want %v", got.Labels, tt.want.workLabel)
+			}
+		})
+	}
+}
+
+func Test_GenerateManifestWorkAppSetHashLabelValue(t *testing.T) {
+	type args struct {
+		appSetNamespace string
+		appSetName      string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "sunny",
+			args: args{
+				appSetNamespace: "argocd",
+				appSetName:      "appset-1",
+			},
+			want:    "b208dbecfe0a5f65581d608faac0e95c9a302b34",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GenerateManifestWorkAppSetHashLabelValue(tt.args.appSetNamespace, tt.args.appSetName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GenerateManifestWorkAppSetHashLabelValue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GenerateManifestWorkAppSetHashLabelValue() = %v, want %v", got, tt.want)
 			}
 		})
 	}

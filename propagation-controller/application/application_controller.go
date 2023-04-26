@@ -49,6 +49,8 @@ const (
 	AnnotationKeyHubApplicationName = "apps.open-cluster-management.io/hub-application-name"
 	// Application and ManifestWork label that shows that ApplicationSet is the grand parent of this work
 	LabelKeyAppSet = "apps.open-cluster-management.io/application-set"
+	// ManifestWork label with the ApplicationSet namespace and name in sha1 hash value
+	LabelKeyAppSetHash = "apps.open-cluster-management.io/application-set-hash"
 	// Application label that enables the pull controller to wrap the Application in ManifestWork payload
 	LabelKeyPull = "apps.open-cluster-management.io/pull-to-ocm-managed-cluster"
 )
@@ -161,11 +163,15 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	log.Info("generating ManifestWork for Application")
-	w := generateManifestWork(mwName, managedClusterName, application)
+	w, err := generateManifestWork(mwName, managedClusterName, application)
+	if err != nil {
+		log.Error(err, "unable to generating ManifestWork")
+		return ctrl.Result{}, err
+	}
 
 	// create or update the ManifestWork depends if it already exists or not
 	var mw workv1.ManifestWork
-	err := r.Get(ctx, types.NamespacedName{Name: mwName, Namespace: managedClusterName}, &mw)
+	err = r.Get(ctx, types.NamespacedName{Name: mwName, Namespace: managedClusterName}, &mw)
 	if errors.IsNotFound(err) {
 		err = r.Client.Create(ctx, w)
 		if err != nil {
