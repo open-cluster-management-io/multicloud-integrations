@@ -49,9 +49,11 @@ import (
 )
 
 const (
-	SearchServiceName = "search-search-api"
-	SearchDefaultNs   = "open-cluster-management"
-	AccessToken       = "ACCESS_TOKEN"
+	SearchServiceName        = "search-search-api"
+	SearchDefaultNs          = "open-cluster-management"
+	AccessToken              = "ACCESS_TOKEN"
+	ClusterRootDomainEnv     = "CLUSTER_ROOT_DOMAIN"
+	ClusterRootDomainDefault = "cluster.local"
 )
 
 type DataSender interface {
@@ -253,7 +255,8 @@ func (r *GitOpsSyncResource) getSearchURL() (string, error) {
 
 	targetPort := svc.Spec.Ports[0].TargetPort.IntVal
 
-	return fmt.Sprintf("https://%v.%v.svc.cluster.local:%v/searchapi/graphql", SearchServiceName, searchNs, targetPort), nil
+	return fmt.Sprintf("https://%v.%v.svc.%v:%v/searchapi/graphql", SearchServiceName, searchNs,
+		getEnv(ClusterRootDomainEnv, ClusterRootDomainDefault), targetPort), nil
 }
 
 func (r *GitOpsSyncResource) getArgoAppsFromSearch(clusters []string, appsetNs, appsetName string) ([]interface{}, []interface{}, error) {
@@ -563,4 +566,13 @@ func getResourceRef(relatedItem map[string]interface{}) *appsetreport.ResourceRe
 	}
 
 	return repRef
+}
+
+func getEnv(key, defaultValue string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists || len(value) == 0 {
+		return defaultValue
+	}
+
+	return value
 }

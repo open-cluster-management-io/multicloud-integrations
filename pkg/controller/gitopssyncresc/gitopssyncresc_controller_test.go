@@ -277,7 +277,8 @@ func TestGitOpsSyncResource_getSearchURL(t *testing.T) {
 		{
 			name:    "Search service exists",
 			service: searchSvc,
-			want:    fmt.Sprintf("https://%v.%v.svc.cluster.local:%v/searchapi/graphql", SearchServiceName, SearchDefaultNs, 8080),
+			want: fmt.Sprintf("https://%v.%v.svc.%v:%v/searchapi/graphql", SearchServiceName, SearchDefaultNs,
+				getEnv(ClusterRootDomainEnv, ClusterRootDomainDefault), 8080),
 			wantErr: false,
 		},
 	}
