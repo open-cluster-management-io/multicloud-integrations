@@ -58,6 +58,7 @@ type ClusterCondition struct {
 	Cluster      string      `json:"cluster,omitempty"`
 	SyncStatus   string      `json:"syncStatus,omitempty"`
 	HealthStatus string      `json:"healthStatus,omitempty"`
+	App          string      `json:"app,omitempty"`
 	Conditions   []Condition `json:"conditions,omitempty"`
 }
 
