@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -118,14 +119,19 @@ var _ = Describe("Application Pull controller", func() {
 			}).Should(BeTrue())
 
 			By("Updating the Application")
-			oldRv := mw.GetResourceVersion()
 			app2.Spec.Project = "somethingelse"
 			Expect(k8sClient.Update(ctx, &app2)).Should(Succeed())
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {
 					return false
 				}
-				return oldRv != mw.GetResourceVersion()
+				if len(mw.Spec.Workload.Manifests) == 0 {
+					return false
+				}
+				if mw.Spec.Workload.Manifests[0].RawExtension.Raw == nil {
+					return false
+				}
+				return strings.Contains(string(mw.Spec.Workload.Manifests[0].RawExtension.Raw), "somethingelse")
 			}).Should(BeTrue())
 
 			By("Deleting the Application")

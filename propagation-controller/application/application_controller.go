@@ -179,8 +179,9 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{}, err
 		}
 	} else if err == nil {
-		app := prepareApplicationForWorkPayload(application)
-		mw.Spec.Workload.Manifests = []workv1.Manifest{{RawExtension: runtime.RawExtension{Object: &app}}}
+		mw.Annotations = w.Annotations
+		mw.Labels = w.Labels
+		mw.Spec = w.Spec
 		err = r.Client.Update(ctx, &mw)
 		if err != nil {
 			log.Error(err, "unable to update ManifestWork")
