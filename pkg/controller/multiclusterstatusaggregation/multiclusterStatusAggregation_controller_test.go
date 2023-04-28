@@ -42,6 +42,7 @@ var (
 			Namespace: "cluster1",
 			Annotations: map[string]string{
 				"apps.open-cluster-management.io/hosting-applicationset": "openshift-gitops/long-resource-name-truncate-the-name-over-46-chars",
+				"apps.open-cluster-management.io/hub-application-name":   "long-resource-name-truncate-the-name-over-46-chars",
 			},
 			Labels: map[string]string{
 				"apps.open-cluster-management.io/application-set": "true",
@@ -55,6 +56,7 @@ var (
 			Namespace: "cluster1",
 			Annotations: map[string]string{
 				"apps.open-cluster-management.io/hosting-applicationset": "openshift-gitops/appset-1",
+				"apps.open-cluster-management.io/hub-application-name":   "bgd-app",
 			},
 			Labels: map[string]string{
 				"apps.open-cluster-management.io/application-set": "true",
@@ -68,6 +70,7 @@ var (
 			Namespace: "cluster1",
 			Annotations: map[string]string{
 				"apps.open-cluster-management.io/hosting-applicationset": "openshift-gitops/appset-2",
+				"apps.open-cluster-management.io/hub-application-name":   "bgd-app-2",
 			},
 			Labels: map[string]string{
 				"apps.open-cluster-management.io/application-set": "true",
@@ -81,6 +84,7 @@ var (
 			Namespace: "cluster1",
 			Annotations: map[string]string{
 				"apps.open-cluster-management.io/hosting-applicationset": "openshift-gitops/appset-3",
+				"apps.open-cluster-management.io/hub-application-name":   "bgd-app-3",
 			},
 			Labels: map[string]string{
 				"apps.open-cluster-management.io/application-set": "true",
@@ -108,6 +112,7 @@ var (
 			Namespace: "cluster1",
 			Annotations: map[string]string{
 				"apps.open-cluster-management.io/hosting-applicationset": "openshift-gitops/bgd-app-5",
+				"apps.open-cluster-management.io/hub-application-name":   "bgd-app-5",
 			},
 			Labels: map[string]string{
 				"apps.open-cluster-management.io/application-set": "true",
@@ -121,6 +126,7 @@ var (
 			Namespace: "cluster1",
 			Annotations: map[string]string{
 				"apps.open-cluster-management.io/hosting-applicationset": "",
+				"apps.open-cluster-management.io/hub-application-name":   "dummy-app",
 			},
 			Labels: map[string]string{
 				"apps.open-cluster-management.io/application-set": "true",
@@ -581,12 +587,14 @@ func TestReconcilePullModel(t *testing.T) {
 			SyncStatus:   "Synced",
 			HealthStatus: "Healthy",
 			Conditions:   []appsetreportV1alpha1.Condition{{Type: "SyncError", Message: "error message 1"}},
+			App:          "openshift-gitops/bgd-app",
 		},
 		{
 			Cluster:      "cluster3",
 			SyncStatus:   "",
 			HealthStatus: "",
 			Conditions:   []appsetreportV1alpha1.Condition{{Type: "SyncError", Message: "error message 3"}},
+			App:          "", // No corresponding appset
 		},
 	}))
 
@@ -599,6 +607,7 @@ func TestReconcilePullModel(t *testing.T) {
 			SyncStatus:   "Unknown",
 			HealthStatus: "Unknown",
 			Conditions:   nil,
+			App:          "openshift-gitops/bgd-app-2",
 		},
 	}))
 
@@ -611,6 +620,7 @@ func TestReconcilePullModel(t *testing.T) {
 			SyncStatus:   "Unknown",
 			HealthStatus: "Unknown",
 			Conditions:   nil,
+			App:          "openshift-gitops/bgd-app-3",
 		},
 	}))
 	time.Sleep(4 * time.Second)
@@ -654,6 +664,7 @@ func TestReconcilePullModel(t *testing.T) {
 			SyncStatus:   "Synced",
 			HealthStatus: "Progressing",
 			Conditions:   nil,
+			App:          "openshift-gitops/sample-app",
 		},
 	}))
 }

@@ -63,6 +63,7 @@ type Cluster struct {
 type OverallStatus struct {
 	HealthStatus string
 	SyncStatus   string
+	App          string
 }
 
 // AppSetClusterResourceSorter sorts appsetreport resources by name
@@ -132,7 +133,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 		continueToken string
 	)
 
-	appSetRequirement, err := labels.NewRequirement("apps.open-cluster-management.io/application-set", selection.Exists, []string{})
+	appSetRequirement, err := labels.NewRequirement(propagation.LabelKeyAppSet, selection.Exists, []string{})
 	if err != nil {
 		klog.Errorf("bad requirement: %v", err)
 	}
@@ -170,7 +171,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 		PrintMemUsage("Initialize AppSet Map.")
 
 		for _, manifestWork := range appSetClusterList.Items {
-			appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["apps.open-cluster-management.io/hosting-applicationset"])
+			appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations[propagation.AnnotationKeyAppSet])
 
 			if appsetNs == "" || appsetName == "" {
 				klog.Warningf("Appset namespace: %v , Appset name: %v", appsetNs, appsetName)
@@ -184,7 +185,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 		for _, manifestWork := range appSetClusterList.Items {
 			healthStatus, syncStatus := "Unknown", "Unknown"
 
-			appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations["apps.open-cluster-management.io/hosting-applicationset"])
+			appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations[propagation.AnnotationKeyAppSet])
 
 			if appsetNs == "" && appsetName == "" {
 				klog.Warningf("Appset namespace: %v , Appset name: %v", appsetNs, appsetName)
@@ -206,6 +207,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 			appSetClusterStatusMap[appSetKey][clusterKey] = OverallStatus{
 				HealthStatus: healthStatus,
 				SyncStatus:   syncStatus,
+				App:          appsetNs + "/" + manifestWork.Annotations[propagation.AnnotationKeyHubApplicationName],
 			}
 		}
 
@@ -255,7 +257,7 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 					Name:      appsetName,
 					Namespace: appsetNs,
 					Labels: map[string]string{
-						"apps.open-cluster-management.io/hosting-applicationset": fmt.Sprintf("%.63s", appsetNs+"."+appsetName),
+						propagation.AnnotationKeyAppSet: fmt.Sprintf("%.63s", appsetNs+"."+appsetName),
 					},
 				}
 
@@ -343,6 +345,7 @@ func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap m
 			Cluster:      cluster.clusterName,
 			SyncStatus:   appSetClusterStatusMap[appset][cluster].SyncStatus,
 			HealthStatus: appSetClusterStatusMap[appset][cluster].HealthStatus,
+			App:          appSetClusterStatusMap[appset][cluster].App,
 		}
 
 		// Calculate the summary while we're here.
@@ -379,21 +382,21 @@ func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap m
 	}
 
 	// Combine cluster conditions from manifestwork and yaml
-	for _, item := range appSetCRDConditions {
-		klog.V(1).Info("AppSetCRD conditions item: ", item)
+	for _, yamlConditions := range appSetCRDConditions {
+		klog.V(1).Info("AppSetCRD conditions item: ", yamlConditions)
 
-		if e, ok := appSetClusterConditionsMap[item.Cluster]; ok {
-			e.Conditions = item.Conditions
-			appSetClusterConditionsMap[item.Cluster] = e
+		if cCond, ok := appSetClusterConditionsMap[yamlConditions.Cluster]; ok {
+			cCond.Conditions = yamlConditions.Conditions
+			appSetClusterConditionsMap[yamlConditions.Cluster] = cCond
 		} else {
-			appSetClusterConditionsMap[item.Cluster] = item
+			appSetClusterConditionsMap[yamlConditions.Cluster] = yamlConditions
 		}
 	}
 
 	res := make([]appsetreportV1alpha1.ClusterCondition, 0, len(appSetClusterConditionsMap))
 
-	for _, condition := range appSetClusterConditionsMap {
-		res = append(res, condition)
+	for _, cCondition := range appSetClusterConditionsMap {
+		res = append(res, cCondition)
 	}
 
 	// Sort after list has been created so it's in a natural order
@@ -415,7 +418,7 @@ func (r *ReconcilePullModelAggregation) newAppSetReport(appsetNs, appsetName str
 			Name:      appsetName,
 			Namespace: appsetNs,
 			Labels: map[string]string{
-				"apps.open-cluster-management.io/hosting-applicationset": fmt.Sprintf("%.63s", appsetNs+"."+appsetName),
+				propagation.AnnotationKeyAppSet: fmt.Sprintf("%.63s", appsetNs+"."+appsetName),
 			},
 		},
 		Statuses: appsetreportV1alpha1.AppConditions{
@@ -637,14 +640,12 @@ func loadAppSetCRD(pathname string) (*appsetreportV1alpha1.MulticlusterApplicati
 	crddata, err = os.ReadFile(filepath.Clean(pathname))
 
 	if err != nil {
-		klog.Error("Failed to load appconditions crd ", err.Error())
 		return nil, err
 	}
 
 	err = yaml.Unmarshal(crddata, &crdobj)
 
 	if err != nil {
-		klog.Error("Failed to unmarshal appconditions crd ", err.Error(), "\n", string(crddata))
 		return nil, err
 	}
 
