@@ -38,6 +38,7 @@ import (
 	"k8s.io/client-go/rest"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
+	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	"open-cluster-management.io/multicloud-integrations/propagation-controller/application"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -74,6 +75,7 @@ func init() {
 	utilruntime.Must(argov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
 	utilruntime.Must(workv1.AddToScheme(scheme))
+	utilruntime.Must(appsetreportV1alpha1.AddToScheme(scheme))
 }
 
 func main() {

@@ -25,24 +25,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	workv1 "open-cluster-management.io/api/work/v1"
+	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 )
 
-var _ = Describe("Application Pull controller", func() {
+var _ = Describe("Application Status controller", func() {
 
 	const (
 		appName      = "app-5"
-		workName     = "work-1"
+		reportName   = "report-1"
 		appNamespace = "default"
-		clusterName  = "default"
 	)
 
 	appKey := types.NamespacedName{Name: appName, Namespace: appNamespace}
-	workKey := types.NamespacedName{Name: workName, Namespace: clusterName}
+	reportKey := types.NamespacedName{Name: reportName, Namespace: appNamespace}
 	ctx := context.Background()
 
-	Context("When ManifestWork is created/updated", func() {
+	Context("When MulticlusterApplicationSetReport is created/updated", func() {
 		It("Should update Application status", func() {
 			By("Creating the Application")
 			app1 := argov1alpha1.Application{
@@ -54,42 +53,28 @@ var _ = Describe("Application Pull controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, &app1)).Should(Succeed())
 
-			By("Creating the ManifestWork")
-			work1 := workv1.ManifestWork{
+			By("Creating the MulticlusterApplicationSetReport")
+			report1 := appsetreportV1alpha1.MulticlusterApplicationSetReport{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      workName,
-					Namespace: clusterName,
-					Annotations: map[string]string{
-						AnnotationKeyHubApplicationNamespace: appNamespace,
-						AnnotationKeyHubApplicationName:      appName,
+					Name:      reportName,
+					Namespace: appNamespace,
+				},
+			}
+			Expect(k8sClient.Create(ctx, &report1)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, reportKey, &report1)).Should(Succeed())
+
+			By("Updating the MulticlusterApplicationSetReport statuses")
+			report1.Statuses = appsetreportV1alpha1.AppConditions{
+				ClusterConditions: []appsetreportV1alpha1.ClusterCondition{
+					{
+						SyncStatus:   "Synced",
+						HealthStatus: "Healthy",
+						App:          appNamespace + "/" + appName,
+						Cluster:      "cluster1",
 					},
 				},
 			}
-			Expect(k8sClient.Create(ctx, &work1)).Should(Succeed())
-			Expect(k8sClient.Get(ctx, workKey, &work1)).Should(Succeed())
-
-			By("Updating the ManifestWork status")
-			healthy := "Healthy"
-			synced := "Synced"
-			work1.Status = workv1.ManifestWorkStatus{
-				ResourceStatus: workv1.ManifestResourceStatus{
-					Manifests: []workv1.ManifestCondition{{
-						Conditions: []metav1.Condition{{
-							Type:               workv1.WorkApplied,
-							Status:             metav1.ConditionTrue,
-							Reason:             workv1.WorkApplied,
-							Message:            workv1.WorkApplied,
-							LastTransitionTime: work1.CreationTimestamp,
-						}},
-						StatusFeedbacks: workv1.StatusFeedbackResult{
-							Values: []workv1.FeedbackValue{
-								{Name: "healthStatus", Value: workv1.FieldValue{String: &healthy, Type: "String"}},
-								{Name: "syncStatus", Value: workv1.FieldValue{String: &synced, Type: "String"}},
-							}},
-					}},
-				},
-			}
-			Expect(k8sClient.Status().Update(ctx, &work1)).Should(Succeed())
+			Expect(k8sClient.Update(ctx, &report1)).Should(Succeed())
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, appKey, &app1); err != nil {
 					return false
