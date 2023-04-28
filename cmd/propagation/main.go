@@ -29,6 +29,7 @@ import (
 
 	clientsetx "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -146,6 +147,13 @@ func main() {
 		RenewDeadline:           &options.LeaderElectionRenewDeadline,
 		RetryPeriod:             &options.LeaderElectionRetryPeriod,
 		NewClient:               NewNonCachingClient,
+		NewCache: cache.BuilderWithOptions(cache.Options{
+			SelectorsByObject: cache.SelectorsByObject{
+				&workv1.ManifestWork{}: {
+					Label: labels.SelectorFromSet(labels.Set{"apps.open-cluster-management.io/application-set": "true"}),
+				},
+			},
+		}),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
