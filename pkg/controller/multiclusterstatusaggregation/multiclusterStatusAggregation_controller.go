@@ -177,9 +177,11 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 				klog.Warningf("Appset namespace: %v , Appset name: %v", appsetNs, appsetName)
 			}
 
-			// Need to allocate a map of clusters for each appset
+			// Need to allocate a map of clusters for each appset only once.
 			appSetKey := AppSet{types.NamespacedName{Namespace: appsetNs, Name: appsetName}}
-			appSetClusterStatusMap[appSetKey] = make(map[Cluster]OverallStatus)
+			if _, ok := appSetClusterStatusMap[appSetKey]; !ok {
+				appSetClusterStatusMap[appSetKey] = make(map[Cluster]OverallStatus)
+			}
 		}
 
 		for _, manifestWork := range appSetClusterList.Items {
