@@ -134,7 +134,16 @@ var _ = Describe("Application Pull controller", func() {
 				return strings.Contains(string(mw.Spec.Workload.Manifests[0].RawExtension.Raw), "somethingelse")
 			}).Should(BeTrue())
 
+			By("Updating the Application status")
+			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
+			app2.Status.Health.Status = "Healthy"
+			Expect(k8sClient.Update(ctx, &app2)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
+			Expect(app2.Status.Health.Status == "Healthy").Should(BeTrue())
+			// TODO figure how to to verify it didn't reconcile again without using debugger
+
 			By("Deleting the Application")
+			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, &app2)).Should(Succeed())
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {

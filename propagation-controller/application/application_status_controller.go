@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -75,20 +77,28 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 			application := argov1alpha1.Application{}
 			if err := r.Get(ctx, types.NamespacedName{Namespace: appNamespace, Name: appName}, &application); err != nil {
+				if errors.IsNotFound(err) {
+					log.Info("not found Application " + err.Error())
+					continue
+				}
+
 				log.Error(err, "unable to fetch Application")
 				return ctrl.Result{}, err
 			}
 
+			oldStatus := &application.Status
+			newStatus := oldStatus.DeepCopy()
+
 			if cc.SyncStatus != "" {
-				application.Status.Sync.Status = argov1alpha1.SyncStatusCode(cc.SyncStatus)
+				newStatus.Sync.Status = argov1alpha1.SyncStatusCode(cc.SyncStatus)
 			}
 			if cc.HealthStatus != "" {
-				application.Status.Health.Status = cc.HealthStatus
+				newStatus.Health.Status = cc.HealthStatus
 			}
 
 			appSetName := getAppSetOwnerName(application)
-			if appSetName != "" && len(application.Status.Conditions) == 0 {
-				application.Status.Conditions = []argov1alpha1.ApplicationCondition{{
+			if appSetName != "" && len(newStatus.Conditions) == 0 {
+				newStatus.Conditions = []argov1alpha1.ApplicationCondition{{
 					Type: "AdditionalStatusReport",
 					Message: fmt.Sprintf("kubectl get multiclusterapplicationsetreports -n %s %s"+
 						"\nAdditional details available in ManagedCluster %s"+
@@ -99,10 +109,14 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}}
 			}
 
-			err := r.Client.Update(ctx, &application)
-			if err != nil {
-				log.Error(err, "unable to update Application")
-				return ctrl.Result{}, err
+			if !equality.Semantic.DeepEqual(oldStatus, newStatus) {
+				application.Status = *newStatus
+
+				err := r.Client.Update(ctx, &application)
+				if err != nil {
+					log.Error(err, "unable to update Application")
+					return ctrl.Result{}, err
+				}
 			}
 		}
 	}
