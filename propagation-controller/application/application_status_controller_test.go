@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -52,6 +53,7 @@ var _ = Describe("Application Status controller", func() {
 				Spec: argov1alpha1.ApplicationSpec{Source: &argov1alpha1.ApplicationSource{RepoURL: "dummy"}},
 			}
 			Expect(k8sClient.Create(ctx, &app1)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, appKey, &app1)).Should(Succeed())
 
 			By("Creating the MulticlusterApplicationSetReport")
 			report1 := appsetreportV1alpha1.MulticlusterApplicationSetReport{
@@ -75,6 +77,7 @@ var _ = Describe("Application Status controller", func() {
 				},
 			}
 			Expect(k8sClient.Update(ctx, &report1)).Should(Succeed())
+			time.Sleep(3 * time.Second)
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, appKey, &app1); err != nil {
 					return false

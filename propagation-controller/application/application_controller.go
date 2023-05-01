@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -68,9 +69,25 @@ type ApplicationReconciler struct {
 // ApplicationPredicateFunctions defines which Application this controller should wrap inside ManifestWork's payload
 var ApplicationPredicateFunctions = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldApp := e.ObjectOld.(*argov1alpha1.Application)
 		newApp := e.ObjectNew.(*argov1alpha1.Application)
-		return containsValidPullLabel(*newApp) && containsValidPullAnnotation(*newApp)
 
+		isChanged := true // excluding status
+		if oldApp != nil && newApp != nil {
+			oldAppCopy := oldApp.DeepCopy()
+			newAppCopy := newApp.DeepCopy()
+			oldAppCopy.Status = argov1alpha1.ApplicationStatus{}
+			newAppCopy.Status = argov1alpha1.ApplicationStatus{}
+			oldAppCopy.Generation = 0
+			newAppCopy.Generation = 0
+			oldAppCopy.ResourceVersion = ""
+			newAppCopy.ResourceVersion = ""
+			oldAppCopy.ManagedFields = nil
+			newAppCopy.ManagedFields = nil
+			isChanged = !equality.Semantic.DeepEqual(oldAppCopy, newAppCopy)
+		}
+
+		return containsValidPullLabel(*newApp) && containsValidPullAnnotation(*newApp) && isChanged
 	},
 	CreateFunc: func(e event.CreateEvent) bool {
 		app := e.Object.(*argov1alpha1.Application)
