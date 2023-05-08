@@ -74,7 +74,7 @@ func (c *HTTPDataSender) Send(httpClient *http.Client, req *http.Request) (map[s
 	// Parse search results
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			klog.Error(err, "Error parsing search results")
+			klog.Error("error parsing search results", err)
 		}
 	}()
 
@@ -137,7 +137,7 @@ func (r *GitOpsSyncResource) Start(ctx context.Context) error {
 	go wait.Until(func() {
 		err := r.syncResources()
 		if err != nil {
-			klog.Error(err, "Error syncing resources from search")
+			klog.Error("error syncing resources from search", err)
 		}
 	}, time.Duration(r.Interval)*time.Second, ctx.Done())
 
@@ -351,22 +351,31 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(clusters []string, appsetNs, 
 	req.Header.Add("Authorization", bearer)
 
 	respData, err := r.DataSender.Send(httpClient, req)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	searchResults := respData["data"].(map[string]interface{})["searchResult"].([]interface{})
-	if len(searchResults) == 0 {
+	searchResult, ok := respData["data"].(map[string]interface{})["searchResult"]
+	if !ok {
+		err := fmt.Errorf("search-api response does not include searchResult")
+		return nil, nil, err
+	}
+
+	searchResultData := searchResult.([]interface{})
+	if len(searchResultData) == 0 {
 		return nil, nil, nil
 	}
 
 	var items []interface{}
-	if i, ok := searchResults[0].(map[string]interface{})["items"]; ok && i != nil {
-		items = searchResults[0].(map[string]interface{})["items"].([]interface{})
+	if i, ok := searchResultData[0].(map[string]interface{})["items"]; ok && i != nil {
+		items = searchResultData[0].(map[string]interface{})["items"].([]interface{})
 	}
 
 	klog.V(1).Infof("Items: %v", items)
 
 	var related []interface{}
-	if r, ok := searchResults[0].(map[string]interface{})["related"]; ok && r != nil {
-		related = searchResults[0].(map[string]interface{})["related"].([]interface{})
+	if r, ok := searchResultData[0].(map[string]interface{})["related"]; ok && r != nil {
+		related = searchResultData[0].(map[string]interface{})["related"].([]interface{})
 	}
 
 	klog.V(1).Infof("Related: %v", related)
@@ -486,7 +495,7 @@ func (r *GitOpsSyncResource) createOrUpdateAppSetReportConditions(appReportsMap 
 func (r *GitOpsSyncResource) writeAppSetResourceFile(report *appsetreport.MulticlusterApplicationSetReport) error {
 	reportJSON, err := yaml.Marshal(report)
 	if err != nil {
-		klog.Error(err, "error converting report to JSON")
+		klog.Error("error converting report to JSON", err)
 		return err
 	}
 
@@ -494,7 +503,7 @@ func (r *GitOpsSyncResource) writeAppSetResourceFile(report *appsetreport.Multic
 	klog.Info(fmt.Sprintf("writing appset report: %v", reportName))
 
 	if err := ioutil.WriteFile(reportName, reportJSON, 0600); err != nil {
-		klog.Error(err, fmt.Sprintf("failed to write appset report yaml file: %v", reportName))
+		klog.Error(fmt.Sprintf("failed to write appset report yaml file: %v", reportName), err)
 		return err
 	}
 
