@@ -576,8 +576,9 @@ func (r *ReconcilePullModelAggregation) cleanupOrphanReports() error {
 
 		if appSet.Statuses.ClusterConditions != nil && len(appSet.Statuses.ClusterConditions) > 0 {
 			for _, clusterCondition := range appSet.Statuses.ClusterConditions {
-				if clusterCondition.App != "" {
-					nsn := strings.Split(clusterCondition.App, "/")
+				nsn := strings.Split(clusterCondition.App, "/")
+
+				if len(nsn) > 3 {
 					workNamespace := nsn[2]
 					workName := nsn[3]
 					work := &workv1.ManifestWork{}

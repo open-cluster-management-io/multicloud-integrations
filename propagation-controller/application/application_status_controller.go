@@ -70,7 +70,9 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	for _, cc := range report.Statuses.ClusterConditions {
-		if cc.App != "" {
+		appNsn := strings.Split(cc.App, "/")
+
+		if len(appNsn) > 1 {
 			appNsn := strings.Split(cc.App, "/")
 			appNamespace := appNsn[0]
 			appName := appNsn[1]
