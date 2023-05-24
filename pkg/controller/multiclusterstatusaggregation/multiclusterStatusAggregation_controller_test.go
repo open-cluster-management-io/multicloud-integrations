@@ -587,7 +587,7 @@ func TestReconcilePullModel(t *testing.T) {
 			SyncStatus:   "Synced",
 			HealthStatus: "Healthy",
 			Conditions:   []appsetreportV1alpha1.Condition{{Type: "SyncError", Message: "error message 1"}},
-			App:          "openshift-gitops/bgd-app",
+			App:          "openshift-gitops/bgd-app/cluster1/cluster1-bgd-app",
 		},
 		{
 			Cluster:      "cluster3",
@@ -607,7 +607,7 @@ func TestReconcilePullModel(t *testing.T) {
 			SyncStatus:   "Unknown",
 			HealthStatus: "Unknown",
 			Conditions:   nil,
-			App:          "openshift-gitops/bgd-app-2",
+			App:          "openshift-gitops/bgd-app-2/cluster1/cluster1-bgd-app-2",
 		},
 	}))
 
@@ -620,7 +620,7 @@ func TestReconcilePullModel(t *testing.T) {
 			SyncStatus:   "Unknown",
 			HealthStatus: "Unknown",
 			Conditions:   nil,
-			App:          "openshift-gitops/bgd-app-3",
+			App:          "openshift-gitops/bgd-app-3/cluster1/cluster1-bgd-app-3",
 		},
 	}))
 	time.Sleep(4 * time.Second)
@@ -664,7 +664,7 @@ func TestReconcilePullModel(t *testing.T) {
 			SyncStatus:   "Synced",
 			HealthStatus: "Progressing",
 			Conditions:   nil,
-			App:          "openshift-gitops/sample-app",
+			App:          "openshift-gitops/sample-app/cluster1/cluster1-bgd-app-4",
 		},
 	}))
 }
