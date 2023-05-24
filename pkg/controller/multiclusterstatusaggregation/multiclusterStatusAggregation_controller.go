@@ -34,7 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
-	v1 "open-cluster-management.io/api/work/v1"
+	workv1 "open-cluster-management.io/api/work/v1"
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	propagation "open-cluster-management.io/multicloud-integrations/propagation-controller/application"
@@ -145,7 +145,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 	appSetClusterStatusMap := make(map[AppSet]map[Cluster]OverallStatus)
 
 	for {
-		appSetClusterList := &v1.ManifestWorkList{}
+		appSetClusterList := &workv1.ManifestWorkList{}
 
 		listopts := &client.ListOptions{
 			LabelSelector: appSetSelector,
@@ -209,7 +209,8 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 			appSetClusterStatusMap[appSetKey][clusterKey] = OverallStatus{
 				HealthStatus: healthStatus,
 				SyncStatus:   syncStatus,
-				App:          appsetNs + "/" + manifestWork.Annotations[propagation.AnnotationKeyHubApplicationName],
+				App: appsetNs + "/" + manifestWork.Annotations[propagation.AnnotationKeyHubApplicationName] +
+					"/" + manifestWork.Namespace + "/" + manifestWork.Name,
 			}
 		}
 
@@ -570,47 +571,34 @@ func (r *ReconcilePullModelAggregation) cleanupOrphanReports() error {
 	}
 
 	for m := range missingAppset {
-		// Look for ManifestWorks associated with this AppSet and then removed them
 		appSet := &missingAppset[m]
-
-		appSetHash, err := propagation.GenerateManifestWorkAppSetHashLabelValue(appSet.Namespace, appSet.Name)
-		if err != nil {
-			klog.Errorf("error generating appSet hash: %v", err)
-			continue
-		}
-
-		appSetRequirement, err := labels.NewRequirement(propagation.LabelKeyAppSetHash, selection.Equals, []string{appSetHash})
-		if err != nil {
-			klog.Errorf("bad requirement: %v", err)
-			continue
-		}
-
-		appSetSelector := labels.NewSelector()
-		appSetSelector = appSetSelector.Add(*appSetRequirement)
-
-		workList := &v1.ManifestWorkList{}
-
-		listopts := &client.ListOptions{
-			LabelSelector: appSetSelector,
-		}
-
-		err = r.List(context.TODO(), workList, listopts)
-		if err != nil {
-			klog.Errorf("Failed to list Argo Application manifestWorks, err: %v", err)
-			continue
-		}
-
 		errOccured := false
 
-		if workList.Items != nil && len(workList.Items) > 0 {
-			deleteInBackground := metav1.DeletePropagationBackground
-			for w := range workList.Items {
-				// Remove ManifestWork
-				if err := r.Delete(context.TODO(), &workList.Items[w], &client.DeleteOptions{PropagationPolicy: &deleteInBackground}); err != nil {
-					if !errors.IsNotFound(err) {
-						klog.Info("Couldn't delete ManifestWork", err)
+		if appSet.Statuses.ClusterConditions != nil && len(appSet.Statuses.ClusterConditions) > 0 {
+			for _, clusterCondition := range appSet.Statuses.ClusterConditions {
+				if clusterCondition.App != "" {
+					nsn := strings.Split(clusterCondition.App, "/")
+					workNamespace := nsn[2]
+					workName := nsn[3]
+					work := &workv1.ManifestWork{}
 
-						errOccured = true
+					if err := r.Get(context.TODO(), types.NamespacedName{Namespace: workNamespace, Name: workName}, work); err != nil {
+						if !errors.IsNotFound(err) {
+							klog.Error("Couldn't get ManifestWork", err)
+
+							errOccured = true
+						}
+
+						continue
+					}
+
+					deleteInBackground := metav1.DeletePropagationBackground
+					if err := r.Delete(context.TODO(), work, &client.DeleteOptions{PropagationPolicy: &deleteInBackground}); err != nil {
+						if !errors.IsNotFound(err) {
+							klog.Error("Couldn't delete ManifestWork", err)
+
+							errOccured = true
+						}
 					}
 				}
 			}
