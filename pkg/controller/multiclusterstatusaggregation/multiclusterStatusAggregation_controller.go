@@ -603,9 +603,10 @@ func (r *ReconcilePullModelAggregation) cleanupOrphanReports() error {
 		errOccured := false
 
 		if workList.Items != nil && len(workList.Items) > 0 {
+			deleteInBackground := metav1.DeletePropagationBackground
 			for w := range workList.Items {
 				// Remove ManifestWork
-				if err := r.Delete(context.TODO(), &workList.Items[w]); err != nil {
+				if err := r.Delete(context.TODO(), &workList.Items[w], &client.DeleteOptions{PropagationPolicy: &deleteInBackground}); err != nil {
 					if !errors.IsNotFound(err) {
 						klog.Info("Couldn't delete ManifestWork", err)
 
