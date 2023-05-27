@@ -352,7 +352,13 @@ func (r *ReconcileGitOpsCluster) reconcileGitOpsCluster(
 
 	instance.Status.LastUpdateTime = metav1.Now()
 	instance.Status.Phase = "successful"
-	instance.Status.Message = fmt.Sprintf("Added managed clusters %v to gitops namespace %s", managedClusters, instance.Spec.ArgoServer.ArgoNamespace)
+
+	managedClustersStr := strings.Join(managedClusterNames, " ")
+	if len(managedClustersStr) > 4096 {
+		managedClustersStr = fmt.Sprintf("%.4096v", managedClustersStr) + "..."
+	}
+
+	instance.Status.Message = fmt.Sprintf("Added managed clusters [%v] to gitops namespace %s", managedClustersStr, instance.Spec.ArgoServer.ArgoNamespace)
 
 	err = r.Client.Status().Update(context.TODO(), instance)
 
