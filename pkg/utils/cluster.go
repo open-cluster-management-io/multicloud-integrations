@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	spokeClusterV1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -327,6 +328,34 @@ var ArgocdServerPredicateFunc = predicate.Funcs{
 
 		klog.Infof("Delete a ArgoCD Server Service: %v/%v", e.Object.GetNamespace(), e.Object.GetName())
 		return true
+	},
+}
+
+var ManagedServiceAccountPredicateFunc = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldmsa := e.ObjectOld.(*authv1alpha1.ManagedServiceAccount)
+		newmsa := e.ObjectNew.(*authv1alpha1.ManagedServiceAccount)
+
+		secretUpdated := !reflect.DeepEqual(oldmsa.Status.TokenSecretRef, newmsa.Status.TokenSecretRef)
+
+		klog.Infof("Managed service account (%v/%v) tokenSecrefRef updated: %v", newmsa.GetNamespace(), newmsa.GetName(), secretUpdated)
+
+		return secretUpdated
+	},
+	CreateFunc: func(e event.CreateEvent) bool {
+		msa := e.Object.(*authv1alpha1.ManagedServiceAccount)
+
+		if msa.Status.TokenSecretRef != nil {
+			return true
+		}
+
+		klog.Infof("Managed service account doesn't have tokenSecrefRef: %v/%v", e.Object.GetNamespace(), e.Object.GetName())
+
+		return false
+	},
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		// No reconcile if managed service account is deleted. Let placement decision update trigger reconcile
+		return false
 	},
 }
 

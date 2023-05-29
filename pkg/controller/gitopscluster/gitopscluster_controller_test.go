@@ -16,6 +16,7 @@ package gitopscluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -27,10 +28,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	v1 "open-cluster-management.io/api/cluster/v1"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -185,12 +188,15 @@ var (
 		},
 	}
 
-	managedCluster1 = &v1.ManagedCluster{
+	managedCluster1 = &clusterv1.ManagedCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster1",
 			Labels: map[string]string{
 				"test-label": "test-value",
 			},
+		},
+		Spec: clusterv1.ManagedClusterSpec{
+			HubAcceptsClient: true,
 		},
 	}
 
@@ -552,16 +558,18 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 
 	g.Expect(placementDecisionAfterupdate3.Status.Decisions[0].ClusterName).To(gomega.Equal("cluster1"))
 
-	managedCluster1Copy := managedCluster1.DeepCopy()
-	g.Expect(c.Create(context.TODO(), managedCluster1Copy)).NotTo(gomega.HaveOccurred())
-
-	defer c.Delete(context.TODO(), managedCluster1Copy)
-
 	// Managed cluster namespace
 	c.Create(context.TODO(), managedClusterNamespace1)
 	g.Expect(c.Create(context.TODO(), managedClusterSecret1.DeepCopy())).NotTo(gomega.HaveOccurred())
 
 	defer c.Delete(context.TODO(), managedClusterSecret1)
+
+	mc1 := managedCluster1.DeepCopy()
+	mc1.Spec.ManagedClusterClientConfigs = []clusterv1.ClientConfig{{URL: "https://local-cluster:6443", CABundle: []byte("abc")}}
+
+	g.Expect(c.Create(context.TODO(), mc1)).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), mc1)
 
 	// Create Openshift-gitops namespace
 	c.Create(context.TODO(), gitopsServerNamespace1)
@@ -582,8 +590,8 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 		APIVersion: "cluster.open-cluster-management.io/v1beta1",
 		Name:       test3Pl.Name,
 	}
-	g.Expect(c.Create(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
 
+	g.Expect(c.Create(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
 	defer c.Delete(context.TODO(), goc)
 
 	// Test that the managed cluster's secret is created in the Argo namespace
@@ -592,14 +600,67 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 	g.Expect(secret.Labels).To(gomega.HaveKeyWithValue("test-label", "test-value"))
 
 	// Test that updates to the managed cluster's labels are propagated
-	managedCluster1Copy.Labels["test-label-2"] = "test-value-2"
-	g.Expect(c.Update(context.TODO(), managedCluster1Copy)).NotTo(gomega.HaveOccurred())
+	mc1.Labels["test-label-2"] = "test-value-2"
+	g.Expect(c.Update(context.TODO(), mc1)).NotTo(gomega.HaveOccurred())
 	g.Eventually(func(g2 gomega.Gomega) {
 		updatedSecret := expectedSecretCreated(c, gitOpsClusterSecret3Key)
 		g2.Expect(updatedSecret).ToNot(gomega.BeNil())
 		g2.Expect(updatedSecret.Labels).To(gomega.HaveKeyWithValue("test-label", "test-value"))
 		g2.Expect(updatedSecret.Labels).To(gomega.HaveKeyWithValue("test-label-2", "test-value-2"))
 	}, 60*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+	// Update GitOpsCluster CR with managedServiceAccountRef
+	msaSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "managedserviceaccountsecret",
+			Namespace: managedClusterNamespace1.Name,
+		},
+		StringData: map[string]string{
+			"token":  "token1",
+			"ca.crt": "caCrt1",
+		},
+	}
+
+	g.Expect(c.Create(context.TODO(), msaSecret)).NotTo(gomega.HaveOccurred())
+	defer c.Delete(context.TODO(), msaSecret)
+
+	msa := &authv1alpha1.ManagedServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "managedserviceaccount1",
+			Namespace: managedClusterNamespace1.Name,
+		},
+		Spec: authv1alpha1.ManagedServiceAccountSpec{Rotation: authv1alpha1.ManagedServiceAccountRotation{Enabled: false}},
+	}
+
+	g.Expect(c.Create(context.TODO(), msa)).NotTo(gomega.HaveOccurred())
+	defer c.Delete(context.TODO(), msa)
+
+	time.Sleep(1 * time.Second)
+
+	g.Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(msa), msa)).NotTo(gomega.HaveOccurred())
+
+	tokenRef := authv1alpha1.SecretRef{Name: msaSecret.Name, LastRefreshTimestamp: metav1.Now()}
+	etime := metav1.NewTime(time.Now().Add(30 * time.Second))
+	msa.Status = authv1alpha1.ManagedServiceAccountStatus{
+		TokenSecretRef:      &tokenRef,
+		ExpirationTimestamp: &etime,
+	}
+	g.Expect(c.Status().Update(context.TODO(), msa)).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(1 * time.Second)
+
+	g.Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(goc), goc))
+	goc.Spec.ManagedServiceAccountRef = msa.Name
+	g.Expect(c.Update(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(1 * time.Second)
+
+	// Check the secret created from the managed service account
+	gitOpsMsaClusterSecretKey := types.NamespacedName{
+		Name:      fmt.Sprintf("%v-%v-cluster-secret", managedClusterNamespace1.Name, msa.Name),
+		Namespace: gitopsServerNamespace1.Name,
+	}
+	g.Expect(expectedSecretCreated(c, gitOpsMsaClusterSecretKey)).ToNot(gomega.BeNil())
 }
 
 func expectedSecretCreated(c client.Client, expectedSecretKey types.NamespacedName) *corev1.Secret {
@@ -936,4 +997,321 @@ func TestUnionSecretData(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateMangedClusterSecretFromManagedServiceAccount(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	c = mgr.GetClient()
+	gitopsc := newReconciler(mgr)
+
+	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
+	mgrStopped := StartTestManager(ctx, mgr, g)
+
+	defer func() {
+		cancel()
+		mgrStopped.Wait()
+	}()
+
+	msa := &authv1alpha1.ManagedServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "managedserviceaccount1",
+			Namespace: managedClusterNamespace1.Name,
+		},
+		Spec: authv1alpha1.ManagedServiceAccountSpec{Rotation: authv1alpha1.ManagedServiceAccountRotation{Enabled: false}},
+	}
+
+	msaSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "managedserviceaccountsecret",
+			Namespace: managedClusterNamespace1.Name,
+		},
+		StringData: map[string]string{
+			"token":  "token1",
+			"ca.crt": "caCrt1",
+		},
+	}
+
+	msaSecret2 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "managedserviceaccountsecret2",
+			Namespace: managedClusterNamespace1.Name,
+		},
+		StringData: map[string]string{
+			"token":  "token2",
+			"ca.crt": "caCrt1",
+		},
+	}
+
+	// Create namespaces
+	c.Create(context.TODO(), argocdServerNamespace1)
+	c.Create(context.TODO(), managedClusterNamespace1)
+
+	// Create managed cluster
+	mc1 := managedCluster1.DeepCopy()
+	mc1.Spec.ManagedClusterClientConfigs = []clusterv1.ClientConfig{{URL: "https://local-cluster:6443", CABundle: []byte("abc")}}
+
+	g.Expect(c.Create(context.TODO(), mc1)).NotTo(gomega.HaveOccurred())
+	defer c.Delete(context.TODO(), mc1)
+
+	time.Sleep(1 * time.Second)
+
+	// No managed service account
+	_, err = gitopsc.(*ReconcileGitOpsCluster).CreateMangedClusterSecretFromManagedServiceAccount(
+		argocdServerNamespace1.Name, managedCluster1, msa.Name)
+	g.Expect(err).To(gomega.HaveOccurred())
+	g.Expect(err.Error()).Should(gomega.MatchRegexp("ManagedServiceAccount.authentication.open-cluster-management.io.*not found"))
+
+	g.Expect(c.Create(context.TODO(), msaSecret)).NotTo(gomega.HaveOccurred())
+	defer c.Delete(context.TODO(), msaSecret)
+
+	g.Expect(c.Create(context.TODO(), msa)).NotTo(gomega.HaveOccurred())
+	defer c.Delete(context.TODO(), msa)
+
+	time.Sleep(1 * time.Second)
+
+	// No tokenSecretRef
+	_, err = gitopsc.(*ReconcileGitOpsCluster).CreateMangedClusterSecretFromManagedServiceAccount(
+		argocdServerNamespace1.Name, mc1, msa.Name)
+	g.Expect(err).To(gomega.HaveOccurred())
+	g.Expect(err.Error()).To(gomega.Equal("no token reference secret found in the managed service account: cluster1/managedserviceaccount1"))
+
+	// Has tokenSecretRef
+	g.Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(msa), msa)).NotTo(gomega.HaveOccurred())
+
+	tokenRef := authv1alpha1.SecretRef{Name: msaSecret.Name, LastRefreshTimestamp: metav1.Now()}
+	etime := metav1.NewTime(time.Now().Add(30 * time.Second))
+	msa.Status = authv1alpha1.ManagedServiceAccountStatus{
+		TokenSecretRef:      &tokenRef,
+		ExpirationTimestamp: &etime,
+	}
+	g.Expect(c.Status().Update(context.TODO(), msa)).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(1 * time.Second)
+
+	// Cluster secret created from the managed service account
+	clusterSecret, err := gitopsc.(*ReconcileGitOpsCluster).CreateMangedClusterSecretFromManagedServiceAccount(
+		argocdServerNamespace1.Name, mc1, msa.Name)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	data := make(map[string]interface{})
+	g.Expect(json.Unmarshal([]byte(clusterSecret.StringData["config"]), &data)).NotTo(gomega.HaveOccurred())
+	g.Expect(data["bearerToken"].(string)).To(gomega.Equal("token1"))
+
+	// Update MSA to a different secret token
+	g.Expect(c.Create(context.TODO(), msaSecret2)).NotTo(gomega.HaveOccurred())
+
+	tokenRef = authv1alpha1.SecretRef{Name: msaSecret2.Name, LastRefreshTimestamp: metav1.Now()}
+	msa.Status = authv1alpha1.ManagedServiceAccountStatus{
+		TokenSecretRef:      &tokenRef,
+		ExpirationTimestamp: &etime,
+	}
+	g.Expect(c.Status().Update(context.TODO(), msa)).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(1 * time.Second)
+
+	// Cluster secret update from the managed service account
+	clusterSecret, err = gitopsc.(*ReconcileGitOpsCluster).CreateMangedClusterSecretFromManagedServiceAccount(
+		argocdServerNamespace1.Name, mc1, msa.Name)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(json.Unmarshal([]byte(clusterSecret.StringData["config"]), &data)).NotTo(gomega.HaveOccurred())
+	g.Expect(data["bearerToken"].(string)).To(gomega.Equal("token2"))
+}
+
+func TestGetAllNonAcmManagedClusterSecretsInArgo(t *testing.T) {
+	argoNs := "argons"
+
+	acmCluster1Secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster1-cluster-secret",
+			Namespace: argoNs,
+			Labels: map[string]string{
+				"argocd.argoproj.io/secret-type":              "cluster",
+				"apps.open-cluster-management.io/acm-cluster": "true",
+			},
+		},
+		StringData: map[string]string{
+			"name":       "cluster1",
+			"server":     "https://api.cluster1.com:6443",
+			"config":     "test-bearer-token-1",
+			"dummy-data": "test-dummy-data",
+		},
+	}
+
+	acmCluster2Secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster2-cluster-secret",
+			Namespace: argoNs,
+			Labels: map[string]string{
+				"argocd.argoproj.io/secret-type":              "cluster",
+				"apps.open-cluster-management.io/acm-cluster": "true",
+			},
+		},
+		StringData: map[string]string{
+			"name":       "cluster2",
+			"server":     "https://api.cluster2.com:6443",
+			"config":     "test-bearer-token-1",
+			"dummy-data": "test-dummy-data",
+		},
+	}
+
+	cusCluster1Secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster1-sa1-cluster-secret",
+			Namespace: argoNs,
+			Labels: map[string]string{
+				"argocd.argoproj.io/secret-type": "cluster",
+			},
+		},
+		StringData: map[string]string{
+			"name":       "cluster1",
+			"server":     "https://api.cluster1.com:6443",
+			"config":     "test-bearer-token-1",
+			"dummy-data": "test-dummy-data",
+		},
+	}
+
+	cusCluster2Secret1 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster2-sa1-cluster-secret",
+			Namespace: argoNs,
+			Labels: map[string]string{
+				"argocd.argoproj.io/secret-type": "cluster",
+			},
+		},
+		StringData: map[string]string{
+			"name":       "cluster2",
+			"server":     "https://api.cluster2.com:6443",
+			"config":     "test-bearer-token-1",
+			"dummy-data": "test-dummy-data",
+		},
+	}
+
+	cusCluster2Secret2 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster2-sa2-cluster-secret",
+			Namespace: argoNs,
+			Labels: map[string]string{
+				"argocd.argoproj.io/secret-type": "cluster",
+			},
+		},
+		StringData: map[string]string{
+			"name":       "cluster2",
+			"server":     "https://api.cluster2.com:6443",
+			"config":     "test-bearer-token-1",
+			"dummy-data": "test-dummy-data",
+		},
+	}
+
+	g := gomega.NewGomegaWithT(t)
+
+	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	c = mgr.GetClient()
+
+	gitopsc := newReconciler(mgr)
+
+	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
+	mgrStopped := StartTestManager(ctx, mgr, g)
+
+	defer func() {
+		cancel()
+		mgrStopped.Wait()
+	}()
+
+	time.Sleep(time.Second * 3)
+
+	argoNsNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: argoNs,
+		},
+	}
+
+	g.Expect(c.Create(context.TODO(), argoNsNs)).NotTo(gomega.HaveOccurred())
+	defer c.Delete(context.TODO(), argoNsNs)
+
+	// No cluster secrets
+	clustersecretsMap, err := gitopsc.(*ReconcileGitOpsCluster).GetAllNonAcmManagedClusterSecretsInArgo(argoNs)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(len(clustersecretsMap)).To(gomega.Equal(0))
+
+	// ACM cluster secrets
+	g.Expect(c.Create(context.TODO(), acmCluster1Secret)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Create(context.TODO(), acmCluster2Secret)).NotTo(gomega.HaveOccurred())
+
+	clustersecretsMap, err = gitopsc.(*ReconcileGitOpsCluster).GetAllNonAcmManagedClusterSecretsInArgo(argoNs)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(len(clustersecretsMap)).To(gomega.Equal(0))
+
+	// Non-ACM cluster secrets
+	g.Expect(c.Create(context.TODO(), cusCluster1Secret)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Create(context.TODO(), cusCluster2Secret1)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Create(context.TODO(), cusCluster2Secret2)).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(1 * time.Second)
+
+	clustersecretsMap, err = gitopsc.(*ReconcileGitOpsCluster).GetAllNonAcmManagedClusterSecretsInArgo(argoNs)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(len(clustersecretsMap["cluster1"])).To(gomega.Equal(1))
+	g.Expect(len(clustersecretsMap["cluster2"])).To(gomega.Equal(2))
+}
+
+func TestGetManagedClusterURL(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+	c := initClient()
+
+	g.Expect(c.Create(context.TODO(), managedCluster1.DeepCopy())).NotTo(gomega.HaveOccurred())
+	defer c.Delete(context.TODO(), managedCluster1)
+
+	tests := []struct {
+		name          string
+		clientconfigs []clusterv1.ClientConfig
+		want          string
+		wantErr       string
+	}{
+		{
+			name:          "No client configs",
+			clientconfigs: []clusterv1.ClientConfig{},
+			want:          "",
+			wantErr:       "no client configs found for managed cluster: cluster1",
+		},
+		{
+			name:          "One client configs",
+			clientconfigs: []clusterv1.ClientConfig{{URL: "https://local-cluster:6443", CABundle: []byte("abc")}},
+			want:          "https://local-cluster:6443",
+			wantErr:       "",
+		},
+		{
+			name: "Two failed client configs",
+			clientconfigs: []clusterv1.ClientConfig{{URL: "https://local-cluster:6443", CABundle: []byte("abc")},
+				{URL: "https://local-cluster:9443", CABundle: []byte("abc")}},
+			want:    "",
+			wantErr: "failed to find an accessible URL for the managed cluster: cluster1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g.Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(managedCluster1), managedCluster1)).NotTo(gomega.HaveOccurred())
+
+			managedCluster1.Spec.ManagedClusterClientConfigs = tt.clientconfigs
+			g.Expect(c.Update(context.TODO(), managedCluster1)).NotTo(gomega.HaveOccurred())
+
+			got, gotErr := getManagedClusterURL(managedCluster1, "")
+			if tt.wantErr != "" && (gotErr == nil || tt.wantErr != gotErr.Error()) {
+				t.Errorf("getManagedClusterURL() err = %v, want %v", gotErr, tt.wantErr)
+			}
+
+			g.Expect(got).To(gomega.Equal(tt.want))
+		})
+	}
+}
+
+func initClient() client.Client {
+	ncb := fake.NewClientBuilder()
+	return ncb.Build()
 }

@@ -39,9 +39,11 @@ type GitOpsCluster struct {
 
 // GitOpsClusterSpec defines the desired state of GitOpsCluster.
 type GitOpsClusterSpec struct {
-	ArgoServer                ArgoServerSpec          `json:"argoServer"`
-	PlacementRef              *corev1.ObjectReference `json:"placementRef"`
-	CreateBlankClusterSecrets *bool                   `json:"createBlankClusterSecrets,omitempty"`
+	ArgoServer   ArgoServerSpec          `json:"argoServer"`
+	PlacementRef *corev1.ObjectReference `json:"placementRef"`
+	// ManagedServiceAccountRef defines managed service account in the managed cluster namespace used to create the ArgoCD cluster secret.
+	ManagedServiceAccountRef  string `json:"managedServiceAccountRef,omitempty"`
+	CreateBlankClusterSecrets *bool  `json:"createBlankClusterSecrets,omitempty"`
 }
 
 // ArgoServerSpec defines a argo server installed in a managed cluster.

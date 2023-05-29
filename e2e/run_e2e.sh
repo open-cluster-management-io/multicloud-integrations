@@ -9,6 +9,7 @@ set -o pipefail
 echo "SETUP install multicloud-integrations"
 kubectl config use-context kind-hub
 kubectl apply -f deploy/crds/
+kubectl apply -f hack/crds/0000_00_clusters.open-cluster-management.io_managedserviceaccounts.crd.yaml
 kubectl apply -f deploy/controller/
 
 sleep 120
@@ -72,6 +73,11 @@ if kubectl -n argocd get gitopsclusters argo-ocm-importer -o yaml | grep success
     echo "GitOpsCluster: status successful"
 else
     echo "GitOpsCluster FAILED: status not successful"
+
+    kubectl -n argocd get gitopsclusters argo-ocm-importer -o yaml
+
+    kubectl logs -n open-cluster-management deployment/multicloud-integrations-gitops
+    
     exit 1
 fi
 if [[ "$(kubectl -n argocd get secret -l=test-label=test-value -o jsonpath='{.items[0].metadata.name}')" == "cluster1-cluster-secret" ]]; then
@@ -82,7 +88,7 @@ else
 fi
 # Add another test label to cluster1 to test that updated labels are propagated
 kubectl label managedcluster cluster1 test-label-2=test-value-2
-sleep 10s
+sleep 20s
 if kubectl -n argocd get gitopsclusters argo-ocm-importer -o yaml | grep successful; then
     echo "GitOpsCluster: status successful"
 else
