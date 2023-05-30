@@ -212,6 +212,10 @@ func (r *ReconcileGitOpsCluster) Reconcile(ctx context.Context, request reconcil
 		return reconcile.Result{Requeue: false}, nil
 	}
 
+	var returnErr error
+
+	var returnRequeueInterval int
+
 	// For any watched resource change, process all GitOpsCluster CRs to create new secrets or update existing secrets.
 	for _, gitOpsCluster := range gitOpsClusters.Items {
 		klog.Info("Process GitOpsCluster: " + gitOpsCluster.Namespace + "/" + gitOpsCluster.Name)
@@ -232,14 +236,23 @@ func (r *ReconcileGitOpsCluster) Reconcile(ctx context.Context, request reconcil
 		if err != nil {
 			klog.Error(err.Error())
 
-			return reconcile.Result{Requeue: true, RequeueAfter: time.Duration(requeueInterval) * time.Minute}, err
+			returnErr = err
+			returnRequeueInterval = requeueInterval
 		}
 	}
 
 	// Remove all invalid/orphan GitOps cluster secrets
 	if !r.cleanupOrphanSecrets(orphanGitOpsClusterSecretList) {
 		// If it failed to delete orphan GitOps managed cluster secrets, reconile again in 10 minutes.
-		return reconcile.Result{Requeue: true, RequeueAfter: time.Duration(10) * time.Minute}, err
+		if returnErr == nil {
+			return reconcile.Result{Requeue: true, RequeueAfter: time.Duration(10) * time.Minute}, err
+		}
+	}
+
+	if returnErr != nil {
+		klog.Info("reconcile failed, requeue")
+
+		return reconcile.Result{Requeue: true, RequeueAfter: time.Duration(returnRequeueInterval) * time.Minute}, returnErr
 	}
 
 	return reconcile.Result{}, nil
