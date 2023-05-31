@@ -461,7 +461,9 @@ func (r *ReconcileGitOpsCluster) GetAllNonAcmManagedClusterSecretsInArgo(argoNs 
 	}
 
 	// Add non-ACM secrets to map by cluster name
-	for _, s := range secretList.Items {
+	for i := range secretList.Items {
+		s := secretList.Items[i]
+
 		_, acmcluster := s.Labels["apps.open-cluster-management.io/acm-cluster"]
 		if !acmcluster {
 			cluster := s.Data["name"]
@@ -1165,7 +1167,8 @@ func getManagedClusterURL(managedCluster *spokeclusterv1.ManagedCluster, token s
 		httpClient := http.DefaultClient
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
-				RootCAs: caCertPool,
+				RootCAs:    caCertPool,
+				MinVersion: tls.VersionTLS13,
 			},
 		}
 
