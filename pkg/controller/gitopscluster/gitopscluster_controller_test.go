@@ -661,6 +661,22 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 		Namespace: gitopsServerNamespace1.Name,
 	}
 	g.Expect(expectedSecretCreated(c, gitOpsMsaClusterSecretKey)).ToNot(gomega.BeNil())
+
+	// Update gitops cluster to use a non-existent managed service account,
+	// expects to fail to create the new cluster secret but old cluster secret should be removed
+	g.Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(goc), goc))
+	goc.Spec.ManagedServiceAccountRef = "dummy-msa"
+	g.Expect(c.Update(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(1 * time.Second)
+
+	oldClusterSecret := &corev1.Secret{}
+
+	g.Eventually(func(g2 gomega.Gomega) {
+		err = c.Get(context.TODO(), gitOpsMsaClusterSecretKey, oldClusterSecret)
+
+		g2.Expect(err).ToNot(gomega.BeNil())
+	}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
 }
 
 func expectedSecretCreated(c client.Client, expectedSecretKey types.NamespacedName) *corev1.Secret {
