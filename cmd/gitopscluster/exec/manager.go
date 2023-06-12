@@ -126,6 +126,9 @@ func RunManager() {
 	klog.Info("Detecting ACM cluster API service...")
 	utils.DetectClusterRegistry(sig, mgr.GetAPIReader())
 
+	klog.Info("Detecting ACM managedServiceAccount API...")
+	utils.DetectManagedServiceAccount(sig, mgr.GetAPIReader())
+
 	klog.Info("Starting the Cmd.")
 
 	// Start the Cmd

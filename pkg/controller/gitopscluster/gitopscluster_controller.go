@@ -172,12 +172,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		}
 
 		// Watch changes to Managed service account's tokenSecretRef
-		err = c.Watch(
-			&source.Kind{Type: &authv1alpha1.ManagedServiceAccount{}},
-			&handler.EnqueueRequestForObject{},
-			utils.ManagedServiceAccountPredicateFunc)
-		if err != nil {
-			return err
+		if utils.IsReadyManagedServiceAccount(mgr.GetAPIReader()) {
+			err = c.Watch(
+				&source.Kind{Type: &authv1alpha1.ManagedServiceAccount{}},
+				&handler.EnqueueRequestForObject{},
+				utils.ManagedServiceAccountPredicateFunc)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
