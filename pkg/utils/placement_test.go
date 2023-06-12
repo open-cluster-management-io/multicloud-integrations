@@ -16,10 +16,17 @@ package utils
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/onsi/gomega"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -41,4 +48,43 @@ func TestIsReadyACMClusterRegistry(t *testing.T) {
 
 	ret := IsReadyACMClusterRegistry(mgr.GetAPIReader())
 	g.Expect(ret).To(gomega.Equal(true))
+}
+
+func TestIsReadyManagedServiceAccount(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	tEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "deploy", "crds"),
+			filepath.Join("..", "..", "hack", "test"),
+		},
+	}
+
+	authv1alpha1.SchemeBuilder.AddToScheme(scheme.Scheme)
+
+	var (
+		err    error
+		cfgSub *rest.Config
+	)
+
+	if cfgSub, err = tEnv.Start(); err != nil {
+		log.Fatal(fmt.Errorf("got error while start up the envtest, err: %w", err))
+	}
+
+	// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
+	// channel when it is finished.
+	mgr, err := manager.New(cfgSub, manager.Options{MetricsBindAddress: "0"})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
+	mgrStopped := StartTestManager(ctx, mgr, g)
+
+	defer func() {
+		cancel()
+		mgrStopped.Wait()
+	}()
+
+	// ManagedServiceAccount API should BE ready
+	ret := IsReadyManagedServiceAccount(mgr.GetAPIReader())
+	g.Expect(ret).To(gomega.BeTrue())
 }

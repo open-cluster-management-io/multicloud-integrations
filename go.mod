@@ -14,12 +14,8 @@ require (
 	k8s.io/client-go v0.24.11
 	k8s.io/klog v1.0.0
 	open-cluster-management.io/api v0.10.0
+	open-cluster-management.io/managed-serviceaccount v0.2.0
 	sigs.k8s.io/controller-runtime v0.12.3
-)
-
-require (
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	open-cluster-management.io/managed-serviceaccount v0.2.0 // indirect
 )
 
 require (

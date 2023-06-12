@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	spokeClusterV1 "open-cluster-management.io/api/cluster/v1"
+	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -51,6 +52,38 @@ func DetectClusterRegistry(ctx context.Context, clReader client.Reader) {
 	if !IsReadyACMClusterRegistry(clReader) {
 		go wait.UntilWithContext(ctx, func(ctx context.Context) {
 			if IsReadyACMClusterRegistry(clReader) {
+				os.Exit(1)
+			}
+		}, time.Duration(10)*time.Second)
+	}
+}
+
+// IsReadyManagedServiceAccount check if managedServiceAccount API is ready or not.
+func IsReadyManagedServiceAccount(clReader client.Reader) bool {
+	managedList := &authv1alpha1.ManagedServiceAccountList{}
+
+	listopts := &client.ListOptions{}
+
+	err := clReader.List(context.TODO(), managedList, listopts)
+	if err != nil {
+		klog.Error("ManagedServiceAccount API NOT ready: ", err)
+
+		return false
+	}
+
+	klog.Info("ManagedServiceAccount API ready")
+
+	return true
+}
+
+// DetectManagedServiceAccount - Detect the managedServiceAccount API every 10 seconds. The controller will be exited when it is ready
+// The controller will be auto restarted later.
+//
+//nolint:unparam
+func DetectManagedServiceAccount(ctx context.Context, clReader client.Reader) {
+	if !IsReadyManagedServiceAccount(clReader) {
+		go wait.UntilWithContext(ctx, func(ctx context.Context) {
+			if IsReadyManagedServiceAccount(clReader) {
 				os.Exit(1)
 			}
 		}, time.Duration(10)*time.Second)
