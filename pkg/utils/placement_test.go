@@ -60,8 +60,6 @@ func TestIsReadyManagedServiceAccount(t *testing.T) {
 		},
 	}
 
-	authv1alpha1.SchemeBuilder.AddToScheme(scheme.Scheme)
-
 	var (
 		err    error
 		cfgSub *rest.Config
@@ -84,7 +82,27 @@ func TestIsReadyManagedServiceAccount(t *testing.T) {
 		mgrStopped.Wait()
 	}()
 
-	// ManagedServiceAccount API should BE ready
+	// ManagedServiceAccount API should NOT BE ready
 	ret := IsReadyManagedServiceAccount(mgr.GetAPIReader())
+	g.Expect(ret).To(gomega.BeFalse())
+
+	// Add CRD to scheme.
+	authv1alpha1.SchemeBuilder.AddToScheme(scheme.Scheme)
+
+	mgr2, err := manager.New(cfgSub, manager.Options{MetricsBindAddress: "0"})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	ctx2, cancel2 := context.WithTimeout(context.TODO(), 5*time.Minute)
+	mgrStopped2 := StartTestManager(ctx2, mgr2, g)
+
+	defer func() {
+		cancel2()
+		mgrStopped2.Wait()
+	}()
+
+	// ManagedServiceAccount API should BE ready
+	ret = IsReadyManagedServiceAccount(mgr2.GetAPIReader())
 	g.Expect(ret).To(gomega.BeTrue())
+
+	DetectManagedServiceAccount(ctx2, mgr2.GetAPIReader())
 }
