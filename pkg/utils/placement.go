@@ -76,8 +76,8 @@ func IsReadyManagedServiceAccount(clReader client.Reader) bool {
 	return true
 }
 
-// DetectManagedServiceAccount - Detect the managedServiceAccount API every 10 seconds. The controller will be exited when it is ready
-// The controller will be auto restarted later.
+// DetectManagedServiceAccount - Detect the managedServiceAccount API every 10 seconds.
+// The controller will be exited when it is ready and will automatically restart after.
 //
 //nolint:unparam
 func DetectManagedServiceAccount(ctx context.Context, clReader client.Reader) {
