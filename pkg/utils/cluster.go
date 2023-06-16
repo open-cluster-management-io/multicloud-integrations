@@ -354,7 +354,14 @@ var ManagedServiceAccountPredicateFunc = predicate.Funcs{
 		return false
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		// No reconcile if managed service account is deleted. Let placement decision update trigger reconcile
+		msa := e.Object.(*authv1alpha1.ManagedServiceAccount)
+
+		if msa.Status.TokenSecretRef != nil {
+			return true
+		}
+
+		klog.Infof("Managed service account doesn't have tokenSecrefRef: %v/%v", e.Object.GetNamespace(), e.Object.GetName())
+
 		return false
 	},
 }

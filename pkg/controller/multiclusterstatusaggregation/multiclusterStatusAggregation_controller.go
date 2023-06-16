@@ -126,7 +126,7 @@ func (r *ReconcilePullModelAggregation) houseKeeping() {
 }
 
 func (r *ReconcilePullModelAggregation) generateAggregation() error {
-	PrintMemUsage("Prepare to aggregate manifestwork statuses")
+	klog.Info(GetMemUsage("Prepare to aggregate manifestwork statuses"))
 
 	var (
 		limit         int64 = 500
@@ -168,7 +168,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 
 		klog.Infof("cluster aggregation Count: %v", appSetClusterCount)
 
-		PrintMemUsage("Initialize AppSet Map.")
+		klog.Info(GetMemUsage("Initialize AppSet Map."))
 
 		for _, manifestWork := range appSetClusterList.Items {
 			appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations[propagation.AnnotationKeyAppSet])
@@ -221,7 +221,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 		}
 	}
 
-	PrintMemUsage("AppSet Map generated.")
+	klog.Info(GetMemUsage("AppSet Map generated."))
 	klog.V(1).Infof("Final AppSet Map: %v", appSetClusterStatusMap)
 
 	// generate report from both propagation and resource sync controllers.
@@ -229,7 +229,7 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 
 	runtime.GC()
 
-	PrintMemUsage("AppSet Report refreshed.")
+	klog.Info(GetMemUsage("AppSet Report refreshed."))
 
 	return nil
 }
@@ -305,7 +305,7 @@ func (r *ReconcilePullModelAggregation) generateAppSetReport(appSetClusterStatus
 			newAppSetReport = r.newAppSetReport(appsetNs, appsetName, []appsetreportV1alpha1.ResourceRef{}, appSetClusterConditions, newSummary)
 		}
 
-		PrintMemUsage("memory usage when updating MulticlusterApplicationSetReport.")
+		klog.Info(GetMemUsage("memory usage when updating MulticlusterApplicationSetReport."))
 
 		//    3. compare the existing report to the new one
 		if !r.compareAppSetReports(existingAppsetReport, newAppSetReport) {
@@ -655,17 +655,19 @@ func ParseNamespacedName(namespacedName string) (string, string) {
 	return parsedstr[0], parsedstr[1]
 }
 
-func PrintMemUsage(title string) {
+func GetMemUsage(title string) string {
 	var m runtime.MemStats
 
 	runtime.ReadMemStats(&m)
 
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	klog.Infof("%v", title)
-	klog.Infof("Alloc = %v MiB", bToMb(m.Alloc))
-	klog.Infof("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
-	klog.Infof("\tSys = %v MiB", bToMb(m.Sys))
-	klog.Infof("\tNumGC = %v\n", m.NumGC)
+	usage := fmt.Sprintf("%v", title)
+	usage += fmt.Sprintf("\nAlloc = %v MiB", bToMb(m.Alloc))
+	usage += fmt.Sprintf("\n\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+	usage += fmt.Sprintf("\n\tSys = %v MiB", bToMb(m.Sys))
+	usage += fmt.Sprintf("\n\tNumGC = %v\n", m.NumGC)
+
+	return usage
 }
 
 func bToMb(b uint64) uint64 {
