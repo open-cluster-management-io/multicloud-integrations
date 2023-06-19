@@ -351,7 +351,7 @@ func (r *ReconcileGitOpsCluster) reconcileGitOpsCluster(
 		managedClusterNames = append(managedClusterNames, managedCluster.Name)
 	}
 
-	klog.Infof("adding managed clusters %v into argo namespace %s", managedClusterNames, instance.Spec.ArgoServer.ArgoNamespace)
+	klog.V(1).Infof("adding managed clusters %v into argo namespace %s", managedClusterNames, instance.Spec.ArgoServer.ArgoNamespace)
 
 	// 3. Copy secret contents from the managed cluster namespaces and create the secret in spec.argoServer.argoNamespace
 	// if spec.createBlankClusterSecrets is true then do err on missing secret from the managed cluster namespace
@@ -1174,10 +1174,18 @@ func getManagedClusterURL(managedCluster *spokeclusterv1.ManagedCluster, token s
 			},
 		}
 
-		_, err = httpClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err == nil {
 			return config.URL, nil
 		}
+
+		defer func() {
+			if resp != nil {
+				if err := resp.Body.Close(); err != nil {
+					klog.Error("Error closing response: ", err)
+				}
+			}
+		}()
 
 		klog.Infof("error sending http request to %v, error: %v", config.URL, err.Error())
 	}
