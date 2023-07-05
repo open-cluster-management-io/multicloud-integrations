@@ -1167,10 +1167,11 @@ func getManagedClusterURL(managedCluster *spokeclusterv1.ManagedCluster, token s
 		caCertPool.AppendCertsFromPEM(config.CABundle)
 
 		httpClient := http.DefaultClient
+		// #nosec G402
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs:    caCertPool,
-				MinVersion: tls.VersionTLS13,
+				MinVersion: gitopsclusterV1beta1.TLSMinVersionInt,
 			},
 		}
 
