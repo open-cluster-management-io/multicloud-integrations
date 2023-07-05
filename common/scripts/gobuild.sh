@@ -39,7 +39,7 @@ GOBUILDFLAGS=${GOBUILDFLAGS:-""}
 IFS=' ' read -r -a GOBUILDFLAGS_ARRAY <<< "$GOBUILDFLAGS"
 
 GCFLAGS=${GCFLAGS:-}
-export CGO_ENABLED=0
+export CGO_ENABLED=1
 
 if [[ "${STATIC}" !=  "1" ]];then
     LDFLAGS=""
