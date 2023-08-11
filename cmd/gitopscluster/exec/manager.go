@@ -18,9 +18,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/IBM/controller-filtered-cache/filteredcache"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	"open-cluster-management.io/multicloud-integrations/pkg/apis"
@@ -32,7 +30,6 @@ import (
 	"k8s.io/klog"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
@@ -56,13 +53,6 @@ func RunManager() {
 		klog.Info("LeaderElection disabled as not running in a cluster")
 	}
 
-	// Cache only the managed cluster secrets
-	filteredSecretMap := map[schema.GroupVersionKind]filteredcache.Selector{
-		v1.SchemeGroupVersion.WithKind("Secret"): {
-			LabelSelector: "apps.open-cluster-management.io/cluster-name,argocd.argoproj.io/secret-type==cluster",
-		},
-	}
-
 	klog.Info("Leader election settings",
 		"leaseDuration", options.LeaderElectionLeaseDuration,
 		"renewDeadline", options.LeaderElectionRenewDeadline,
@@ -75,7 +65,6 @@ func RunManager() {
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "multicloud-operators-gitopscluster-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
-		NewCache:                filteredcache.NewFilteredCacheBuilder(filteredSecretMap),
 		LeaseDuration:           &options.LeaderElectionLeaseDuration,
 		RenewDeadline:           &options.LeaderElectionRenewDeadline,
 		RetryPeriod:             &options.LeaderElectionRetryPeriod,
@@ -138,6 +127,6 @@ func RunManager() {
 	}
 }
 
-func NewNonCachingClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
+func NewNonCachingClient(config *rest.Config, options client.Options) (client.Client, error) {
 	return client.New(config, client.Options{Scheme: scheme.Scheme})
 }

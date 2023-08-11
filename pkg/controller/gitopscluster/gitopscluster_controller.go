@@ -88,7 +88,7 @@ type placementDecisionMapper struct {
 	client.Client
 }
 
-func (mapper *placementDecisionMapper) Map(obj client.Object) []reconcile.Request {
+func (mapper *placementDecisionMapper) Map(ctx context.Context, obj client.Object) []reconcile.Request {
 	var requests []reconcile.Request
 
 	gitOpsClusterList := &gitopsclusterV1beta1.GitOpsClusterList{}
@@ -134,7 +134,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if utils.IsReadyACMClusterRegistry(mgr.GetAPIReader()) {
 		// Watch gitopscluster changes
 		err = c.Watch(
-			&source.Kind{Type: &gitopsclusterV1beta1.GitOpsCluster{}},
+			source.Kind(mgr.GetCache(), &gitopsclusterV1beta1.GitOpsCluster{}),
 			&handler.EnqueueRequestForObject{},
 			utils.GitOpsClusterPredicateFunc)
 		if err != nil {
@@ -144,7 +144,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		// Watch for managed cluster secret changes in argo or managed cluster namespaces
 		// The manager started with cache that filters all other secrets so no predicate needed
 		err = c.Watch(
-			&source.Kind{Type: &v1.Secret{}},
+			source.Kind(mgr.GetCache(), &v1.Secret{}),
 			&handler.EnqueueRequestForObject{},
 			utils.ManagedClusterSecretPredicateFunc)
 		if err != nil {
@@ -154,7 +154,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		// Watch cluster list changes in placement decision
 		pdMapper := &placementDecisionMapper{mgr.GetClient()}
 		err = c.Watch(
-			&source.Kind{Type: &clusterv1beta1.PlacementDecision{}},
+			source.Kind(mgr.GetCache(), &clusterv1beta1.PlacementDecision{}),
 			handler.EnqueueRequestsFromMapFunc(pdMapper.Map),
 			utils.PlacementDecisionPredicateFunc)
 
@@ -164,7 +164,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 		// Watch cluster changes to update cluster labels
 		err = c.Watch(
-			&source.Kind{Type: &spokeclusterv1.ManagedCluster{}},
+			source.Kind(mgr.GetCache(), &spokeclusterv1.ManagedCluster{}),
 			&handler.EnqueueRequestForObject{},
 			utils.ClusterPredicateFunc)
 		if err != nil {
@@ -174,7 +174,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		// Watch changes to Managed service account's tokenSecretRef
 		if utils.IsReadyManagedServiceAccount(mgr.GetAPIReader()) {
 			err = c.Watch(
-				&source.Kind{Type: &authv1alpha1.ManagedServiceAccount{}},
+				source.Kind(mgr.GetCache(), &authv1alpha1.ManagedServiceAccount{}),
 				&handler.EnqueueRequestForObject{},
 				utils.ManagedServiceAccountPredicateFunc)
 			if err != nil {

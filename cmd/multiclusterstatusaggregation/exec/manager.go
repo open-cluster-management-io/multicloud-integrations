@@ -29,7 +29,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
@@ -139,6 +138,6 @@ func RunManager() {
 	}
 }
 
-func NewNonCachingClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
+func NewNonCachingClient(config *rest.Config, options client.Options) (client.Client, error) {
 	return client.New(config, client.Options{Scheme: clientgoscheme.Scheme})
 }
