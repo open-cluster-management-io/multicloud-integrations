@@ -41,7 +41,6 @@ import (
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	"open-cluster-management.io/multicloud-integrations/propagation-controller/application"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -196,6 +195,6 @@ func main() {
 	}
 }
 
-func NewNonCachingClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
+func NewNonCachingClient(config *rest.Config, options client.Options) (client.Client, error) {
 	return client.New(config, client.Options{Scheme: scheme})
 }
