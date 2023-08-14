@@ -330,7 +330,10 @@ func TestReconcileCreateSecretInArgo(t *testing.T) {
 
 	c = mgr.GetClient()
 
-	recFn := SetupTestReconcile(newReconciler(mgr))
+	reconciler, err := newReconciler(mgr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	recFn := SetupTestReconcile(reconciler)
 	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
@@ -432,7 +435,10 @@ func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
 
 	c = mgr.GetClient()
 
-	recFn := SetupTestReconcile(newReconciler(mgr))
+	reconciler, err := newReconciler(mgr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	recFn := SetupTestReconcile(reconciler)
 	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
@@ -512,7 +518,10 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 
 	c = mgr.GetClient()
 
-	recFn := SetupTestReconcile(newReconciler(mgr))
+	reconciler, err := newReconciler(mgr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	recFn := SetupTestReconcile(reconciler)
 	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
@@ -755,7 +764,10 @@ func TestReconcileDeleteOrphanSecret(t *testing.T) {
 
 	c = mgr.GetClient()
 
-	recFn := SetupTestReconcile(newReconciler(mgr))
+	reconciler, err := newReconciler(mgr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	recFn := SetupTestReconcile(reconciler)
 	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
@@ -1022,7 +1034,8 @@ func TestCreateMangedClusterSecretFromManagedServiceAccount(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	c = mgr.GetClient()
-	gitopsc := newReconciler(mgr)
+	gitopsc, err := newReconciler(mgr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
 	mgrStopped := StartTestManager(ctx, mgr, g)
@@ -1229,7 +1242,8 @@ func TestGetAllNonAcmManagedClusterSecretsInArgo(t *testing.T) {
 
 	c = mgr.GetClient()
 
-	gitopsc := newReconciler(mgr)
+	gitopsc, err := newReconciler(mgr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
 	mgrStopped := StartTestManager(ctx, mgr, g)
@@ -1330,4 +1344,241 @@ func TestGetManagedClusterURL(t *testing.T) {
 func initClient() client.Client {
 	ncb := fake.NewClientBuilder()
 	return ncb.Build()
+}
+
+func Test_generatePlacementYamlString(t *testing.T) {
+	tests := []struct {
+		name          string
+		gitOpsCluster gitopsclusterV1beta1.GitOpsCluster
+		want          string
+	}{
+		{
+			name: "normal",
+			gitOpsCluster: gitopsclusterV1beta1.GitOpsCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitopscluster",
+					Namespace: "argocd",
+					UID:       "551ce4eb-48dd-459b-b95f-27c70097ccec",
+				},
+			},
+			want: `
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: gitopscluster-policy-local-placement
+  namespace: argocd
+  ownerReferences:
+  - apiVersion: apps.open-cluster-management.io/v1beta1
+    kind: GitOpsCluster
+    name: gitopscluster
+    uid: 551ce4eb-48dd-459b-b95f-27c70097ccec
+spec:
+  clusterSets:
+    - global
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchExpressions:
+            - key: local-cluster
+              operator: In
+              values:
+                - "true"
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := generatePlacementYamlString(tt.gitOpsCluster); got != tt.want {
+				t.Errorf("generatePlacementYamlString() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_generatePlacementBindingYamlString(t *testing.T) {
+	tests := []struct {
+		name          string
+		gitOpsCluster gitopsclusterV1beta1.GitOpsCluster
+		want          string
+	}{
+		{
+			name: "normal",
+			gitOpsCluster: gitopsclusterV1beta1.GitOpsCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitopscluster",
+					Namespace: "argocd",
+					UID:       "551ce4eb-48dd-459b-b95f-27c70097ccec",
+				},
+			},
+			want: `
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: gitopscluster-policy-local-placement-binding
+  namespace: argocd
+  ownerReferences:
+  - apiVersion: apps.open-cluster-management.io/v1beta1
+    kind: GitOpsCluster
+    name: gitopscluster
+    uid: 551ce4eb-48dd-459b-b95f-27c70097ccec
+placementRef:
+  name: gitopscluster-policy-local-placement
+  kind: Placement
+  apiGroup: cluster.open-cluster-management.io
+subjects:
+  - name: gitopscluster-policy
+    kind: Policy
+    apiGroup: policy.open-cluster-management.io
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := generatePlacementBindingYamlString(tt.gitOpsCluster); got != tt.want {
+				t.Errorf("generatePlacementBindingYamlString() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_generatePolicyTemplateYamlString(t *testing.T) {
+	tests := []struct {
+		name          string
+		gitOpsCluster gitopsclusterV1beta1.GitOpsCluster
+		want          string
+	}{
+		{
+			name: "normal",
+			gitOpsCluster: gitopsclusterV1beta1.GitOpsCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitopscluster",
+					Namespace: "argocd",
+					UID:       "551ce4eb-48dd-459b-b95f-27c70097ccec",
+				},
+				Spec: gitopsclusterV1beta1.GitOpsClusterSpec{
+					ManagedServiceAccountRef: "msa",
+					PlacementRef: &corev1.ObjectReference{
+						Name: "placement",
+					},
+				},
+			},
+			want: `
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: gitopscluster-policy
+  namespace: argocd
+  annotations:
+    policy.open-cluster-management.io/standards: NIST-CSF
+    policy.open-cluster-management.io/categories: PR.PT Protective Technology
+    policy.open-cluster-management.io/controls: PR.PT-3 Least Functionality
+  ownerReferences:
+  - apiVersion: apps.open-cluster-management.io/v1beta1
+    kind: GitOpsCluster
+    name: gitopscluster
+    uid: 551ce4eb-48dd-459b-b95f-27c70097ccec
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: gitopscluster-config-policy
+        spec:
+          pruneObjectBehavior: DeleteIfCreated
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{ range $placedec := (lookup "cluster.open-cluster-management.io/v1beta1" "PlacementDecision" "argocd" "" "cluster.open-cluster-management.io/placement=placement").items }}
+            {{ range $clustdec := $placedec.status.decisions }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: authentication.open-cluster-management.io/v1alpha1
+                kind: ManagedServiceAccount
+                metadata:
+                  name: msa
+                  namespace: {{ $clustdec.clusterName }}
+                spec:
+                  rotation: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.open-cluster-management.io/v1alpha1
+                kind: ClusterPermission
+                metadata:
+                  name: gitopscluster-cluster-permission
+                  namespace: {{ $clustdec.clusterName }}
+                spec: {}
+            {{ end }}
+            {{ end }}
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := generatePolicyTemplateYamlString(tt.gitOpsCluster); got != tt.want {
+				t.Errorf("generatePolicyTemplateYamlString() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_createNamespaceScopedResourceFromYAML(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	c = mgr.GetClient()
+
+	gitopsc, err := newReconciler(mgr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
+	mgrStopped := StartTestManager(ctx, mgr, g)
+
+	defer func() {
+		cancel()
+		mgrStopped.Wait()
+	}()
+
+	time.Sleep(time.Second * 3)
+
+	configMapYaml := `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-configmap
+  namespace: default
+data:
+  foo: bar
+`
+
+	err = gitopsc.(*ReconcileGitOpsCluster).createNamespaceScopedResourceFromYAML(configMapYaml)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	cm := &corev1.ConfigMap{}
+	g.Expect(c.Get(context.TODO(),
+		types.NamespacedName{Namespace: "default", Name: "test-configmap"},
+		cm)).NotTo(gomega.HaveOccurred())
+
+	configMapYaml = `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-configmap
+  namespace: default
+data:
+  bar: foo
+`
+
+	err = gitopsc.(*ReconcileGitOpsCluster).createNamespaceScopedResourceFromYAML(configMapYaml)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	g.Expect(c.Get(context.TODO(),
+		types.NamespacedName{Namespace: "default", Name: "test-configmap"},
+		cm)).NotTo(gomega.HaveOccurred())
+
+	g.Expect(cm.Data).To(gomega.Equal(map[string]string{"bar": "foo"}))
 }

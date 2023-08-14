@@ -87,6 +87,7 @@ linters:
     - wastedassign
     - wrapcheck
     - varcheck
+    - lll
   fast: false
 
 linters-settings:
