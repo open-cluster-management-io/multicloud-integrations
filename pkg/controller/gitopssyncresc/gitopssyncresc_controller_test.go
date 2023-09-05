@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -43,6 +44,7 @@ const responseData1 = `
 		  {
 			 "items":[
 				{
+				   "_uid":"cluster1/1e1f78f8-fa3d-4316-8095-46d657a29ee6",
 				   "_conditionOperationError":"one or more objects failed to apply",
 				   "_hostingResource":"ApplicationSet/openshift-gitops/nginx-app-set",
 				   "apigroup":"argoproj.io",
@@ -56,7 +58,8 @@ const responseData1 = `
 				   "name":"cluster1-nginx-app",
 				   "namespace":"openshift-gitops",
 				   "syncStatus":"OutOfSync",
-				   "targetRevision":"1.41.3"
+				   "targetRevision":"1.41.3",
+				   "_missingResources": "[{\"apiversion\":\"v1\",\"kind\":\"Service\",\"name\":\"nginx-ingress-svc\",\"namespace\":\"helm-nginx\"}]"
 				}
 			 ],
 			 "related":[
@@ -71,7 +74,10 @@ const responseData1 = `
 						 "kind":"Role",
 						 "kind_plural":"roles",
 						 "name":"nginx-ingress",
-						 "namespace":"helm-nginx"
+						 "namespace":"helm-nginx",
+						 "_relatedUids":[
+							"cluster1/1e1f78f8-fa3d-4316-8095-46d657a29ee6"
+						 ]
 					  }
 				   ]
 				},
@@ -103,7 +109,10 @@ const responseData1 = `
 						 "kind":"RoleBinding",
 						 "kind_plural":"rolebindings",
 						 "name":"nginx-ingress",
-						 "namespace":"helm-nginx"
+						 "namespace":"helm-nginx",
+						 "_relatedUids":[
+							"cluster1/1e1f78f8-fa3d-4316-8095-46d657a29ee6"
+						 ]
 					  }
 				   ]
 				},
@@ -117,7 +126,10 @@ const responseData1 = `
 						 "cluster":"cluster1",
 						 "kind":"ClusterRole",
 						 "kind_plural":"clusterroles",
-						 "name":"nginx-ingress"
+						 "name":"nginx-ingress",
+						 "_relatedUids":[
+							"cluster1/1e1f78f8-fa3d-4316-8095-46d657a29ee6"
+						 ]
 					  }
 				   ]
 				},
@@ -131,7 +143,10 @@ const responseData1 = `
 						 "cluster":"cluster1",
 						 "kind":"ClusterRoleBinding",
 						 "kind_plural":"clusterrolebindings",
-						 "name":"nginx-ingress"
+						 "name":"nginx-ingress",
+						 "_relatedUids":[
+							"cluster1/1e1f78f8-fa3d-4316-8095-46d657a29ee6"
+						 ]
 					  }
 				   ]
 				}
@@ -166,8 +181,6 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 		ResourceDir: "/tmp",
 	}
 
-	appReportsMap := make(map[string]*appsetreport.MulticlusterApplicationSetReport)
-
 	appset1cluster1 := make(map[string]interface{})
 	appset1cluster1["namespace"] = "test-NS1"
 	appset1cluster1["name"] = "app1"
@@ -186,7 +199,7 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	appset1cluster2["_hostingResource"] = "ApplicationSet/gitops/appset1"
 	appset1cluster2["apigroup"] = "argoproj.io"
 	appset1cluster2["apiversion"] = "v1alpha1"
-	appset1cluster2["_uid"] = "cluster1/abc"
+	appset1cluster2["_uid"] = "cluster2/abc"
 	appset1cluster2["_conditionSyncError"] = "blah reason: something's not right..."
 	appset1cluster2["_conditionOperationError"] = "ah reason: something's not right ok ..."
 	appset1cluster2["_conditionSharedResourceWarning"] = "I think it crashed"
@@ -198,6 +211,7 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	appset1Resources1["name"] = "welcome-php"
 	appset1Resources1["namespace"] = "welcome-waves-and-hooks"
 	appset1Resources1["cluster"] = "cluster1"
+	appset1Resources1["_relatedUids"] = []interface{}{"cluster1/abc"}
 
 	appset1Resources2 := make(map[string]interface{})
 	appset1Resources2["apigroup"] = "batch"
@@ -206,6 +220,7 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	appset1Resources2["name"] = "welcome-presyncjob"
 	appset1Resources2["namespace"] = "welcome-waves-and-hooks"
 	appset1Resources2["cluster"] = "cluster1"
+	appset1Resources2["_relatedUids"] = []interface{}{"cluster1/abc"}
 
 	appset1Resources3 := make(map[string]interface{})
 	appset1Resources3["kind"] = "Deployment"
@@ -213,6 +228,7 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	appset1Resources3["name"] = "welcome-presyncjob-kcbqk"
 	appset1Resources3["namespace"] = "welcome-waves-and-hooks"
 	appset1Resources3["cluster"] = "cluster2"
+	appset1Resources3["_relatedUids"] = []interface{}{"cluster2/abc"}
 
 	related1 := make(map[string]interface{})
 	related1["kind"] = "Service"
@@ -228,35 +244,54 @@ func TestCreateOrUpdateAppSetReport(t *testing.T) {
 	appset1cluster2["related"] = []interface{}{related1, related2, related3}
 
 	managedClustersAppNameMap := make(map[string]map[string]string)
-	c1ResourceListMap := getResourceMapList(appset1cluster1["related"].([]interface{}), "cluster1")
-	err := synResc.createOrUpdateAppSetReportConditions(appReportsMap, appset1cluster1, managedClustersAppNameMap)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(appReportsMap["gitops_appset1"]).NotTo(gomega.BeNil())
-	g.Expect(appReportsMap["gitops_appset1"].GetName()).To(gomega.Equal("gitops_appset1"))
+	c1ResourceListMap := getResourceMapList(appset1cluster1["related"].([]interface{}), "cluster1/abc")
 	g.Expect(len(c1ResourceListMap)).To(gomega.Equal(2))
-	g.Expect(len(appReportsMap["gitops_appset1"].Statuses.ClusterConditions)).To(gomega.Equal(1))
-	g.Expect(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[0].Cluster).To(gomega.Equal("cluster1"))
-	g.Expect(len(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[0].Conditions)).To(gomega.Equal(2))
 
-	if appReportsMap["gitops_appset1"].Statuses.ClusterConditions[0].Conditions[0].Type == "SyncError" {
-		g.Expect(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[0].Conditions[1].Type).To(gomega.Equal("SharedResourceWarning"))
+	expectedResources := []appsetreport.ResourceRef{
+		{APIVersion: appset1Resources1["apiversion"].(string), Kind: appset1Resources1["kind"].(string),
+			Name: appset1Resources1["name"].(string), Namespace: appset1Resources1["namespace"].(string)},
+		{APIVersion: appset1Resources2["apigroup"].(string) + "/" + appset1Resources2["apiversion"].(string), Kind: appset1Resources2["kind"].(string),
+			Name: appset1Resources2["name"].(string), Namespace: appset1Resources2["namespace"].(string)}}
+	g.Expect(c1ResourceListMap).To(gomega.BeEquivalentTo(expectedResources))
+
+	appsetNsn := strings.Split(appset1cluster1["_hostingResource"].(string), "/")
+	reportKey := appsetNsn[1] + "_" + appsetNsn[2]
+
+	report := &appsetreport.MulticlusterApplicationSetReport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      reportKey,
+			Namespace: appsetNsn[1],
+		},
+	}
+	synResc.createOrUpdateAppSetReportConditions(report, appset1cluster1)
+	g.Expect(len(report.Statuses.ClusterConditions)).To(gomega.Equal(1))
+	g.Expect(report.Statuses.ClusterConditions[0].Cluster).To(gomega.Equal("cluster1"))
+	g.Expect(len(report.Statuses.ClusterConditions[0].Conditions)).To(gomega.Equal(2))
+
+	if report.Statuses.ClusterConditions[0].Conditions[0].Type == "SyncError" {
+		g.Expect(report.Statuses.ClusterConditions[0].Conditions[1].Type).To(gomega.Equal("SharedResourceWarning"))
 	} else {
-		g.Expect(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[0].Conditions[0].Type).To(gomega.Equal("SharedResourceWarning"))
-		g.Expect(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[0].Conditions[1].Type).To(gomega.Equal("SyncError"))
+		g.Expect(report.Statuses.ClusterConditions[0].Conditions[0].Type).To(gomega.Equal("SharedResourceWarning"))
+		g.Expect(report.Statuses.ClusterConditions[0].Conditions[1].Type).To(gomega.Equal("SyncError"))
 	}
 
 	g.Expect(managedClustersAppNameMap["appset1"]["cluster1"], "test-NS1_app1")
 
 	// Add to same appset from cluster2
-	c2ResourceListMap := getResourceMapList(appset1cluster2["related"].([]interface{}), "cluster2")
-	err = synResc.createOrUpdateAppSetReportConditions(appReportsMap, appset1cluster2, managedClustersAppNameMap)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	g.Expect(len(appReportsMap["gitops_appset1"].Statuses.ClusterConditions)).To(gomega.Equal(2))
+	c2ResourceListMap := getResourceMapList(appset1cluster2["related"].([]interface{}), "cluster2/abc")
 	g.Expect(len(c2ResourceListMap)).To(gomega.Equal(1))
-	g.Expect(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[0].Cluster).To(gomega.Equal("cluster1"))
-	g.Expect(len(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[0].Conditions)).To(gomega.Equal(2))
-	g.Expect(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[1].Cluster).To(gomega.Equal("cluster2"))
-	g.Expect(len(appReportsMap["gitops_appset1"].Statuses.ClusterConditions[1].Conditions)).To(gomega.Equal(2))
+
+	expectedResources = []appsetreport.ResourceRef{
+		{APIVersion: appset1Resources3["apiversion"].(string), Kind: appset1Resources3["kind"].(string),
+			Name: appset1Resources3["name"].(string), Namespace: appset1Resources3["namespace"].(string)}}
+	g.Expect(c2ResourceListMap).To(gomega.BeEquivalentTo(expectedResources))
+
+	synResc.createOrUpdateAppSetReportConditions(report, appset1cluster2)
+	g.Expect(len(report.Statuses.ClusterConditions)).To(gomega.Equal(2))
+	g.Expect(report.Statuses.ClusterConditions[0].Cluster).To(gomega.Equal("cluster1"))
+	g.Expect(len(report.Statuses.ClusterConditions[0].Conditions)).To(gomega.Equal(2))
+	g.Expect(report.Statuses.ClusterConditions[1].Cluster).To(gomega.Equal("cluster2"))
+	g.Expect(len(report.Statuses.ClusterConditions[1].Conditions)).To(gomega.Equal(2))
 	g.Expect(managedClustersAppNameMap["appset1"]["cluster2"], "test-NS1_app1")
 }
 
@@ -452,6 +487,12 @@ func getReport() *appsetreport.MulticlusterApplicationSetReport {
 					APIVersion: "rbac.authorization.k8s.io/v1",
 					Kind:       "ClusterRoleBinding",
 					Name:       "nginx-ingress",
+				},
+				{
+					APIVersion: "v1",
+					Kind:       "Service",
+					Name:       "nginx-ingress-svc",
+					Namespace:  "helm-nginx",
 				},
 			},
 			ClusterConditions: []appsetreport.ClusterCondition{

@@ -156,9 +156,6 @@ func (r *GitOpsSyncResource) syncResources() error {
 		return err
 	}
 
-	// Mapping of the app name for each cluster of an appset
-	managedClustersAppNameMap := make(map[string]map[string]string)
-
 	mangedClusterTotal := len(managedclusters)
 	iManagedCluster := 0
 
@@ -176,46 +173,63 @@ func (r *GitOpsSyncResource) syncResources() error {
 			iManagedCluster++
 		}
 
-		items, _, err := r.getArgoAppsFromSearch(queryManagedClustersStr, "", "")
+		apps, related, err := r.getArgoAppsFromSearch(queryManagedClustersStr, "", "")
 		if err != nil {
 			return err
 		}
 
-		for _, item := range items {
-			if itemmap, ok := item.(map[string]interface{}); ok {
+		for _, app := range apps {
+			if itemmap, ok := app.(map[string]interface{}); ok {
 				klog.V(1).Info(fmt.Sprintf("item: %v", itemmap))
 
-				_ = r.createOrUpdateAppSetReportConditions(appReportsMap, itemmap, managedClustersAppNameMap)
+				hostingAppsetName := itemmap["_hostingResource"]
+				managedClusterName := itemmap["cluster"].(string)
+				uid := itemmap["_uid"].(string)
+
+				// Skip application that don't belong to an appset
+				if hostingAppsetName == nil {
+					klog.Infof("skip application %v/%v on cluster %v, it does not belong to an appset", itemmap["namespace"], itemmap["name"], managedClusterName)
+					return nil
+				}
+
+				appsetNsn := strings.Split(hostingAppsetName.(string), "/")
+				if len(appsetNsn) != 3 {
+					err := fmt.Errorf("_hostingResource is not in the correct format: %v", hostingAppsetName)
+					klog.Infof(err.Error())
+
+					return err
+				}
+
+				reportKey := appsetNsn[1] + "_" + appsetNsn[2]
+				klog.Info(fmt.Sprintf("report key: %v", reportKey))
+
+				report := appReportsMap[reportKey]
+				if report == nil {
+					klog.Info(fmt.Sprintf("creating new report with key: %v", reportKey))
+
+					report = &appsetreport.MulticlusterApplicationSetReport{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      reportKey,
+							Namespace: appsetNsn[1],
+						},
+					}
+					appReportsMap[reportKey] = report
+				}
+
+				r.createOrUpdateAppSetReportConditions(report, itemmap)
+
+				if len(report.Statuses.Resources) == 0 {
+					// Related resources that has this app as parent
+					relatedResources := getResourceMapList(related, uid)
+
+					// Unhealthy resources for this app
+					unhealthyResources := getMissingResourceMapList(itemmap)
+
+					report.Statuses.Resources = append(relatedResources, unhealthyResources...)
+				}
+
+				klog.V(1).Infof("resources for app (%v/%v): %v", itemmap["namespace"], itemmap["name"], report.Statuses.Resources)
 			}
-		}
-	}
-
-	klog.V(1).Infof("managedClustersAppNameMap: %v", managedClustersAppNameMap)
-
-	// Add resource to the AppSet report
-	for _, v := range appReportsMap {
-		if len(v.Statuses.Resources) != 0 {
-			continue
-		}
-
-		for managedClusterName, appKey := range managedClustersAppNameMap[v.Name] {
-			appNsn := strings.Split(appKey, "_")
-
-			_, related, err := r.getArgoAppsFromSearch([]string{managedClusterName}, appNsn[0], appNsn[1])
-			if err != nil {
-				klog.Infof("failed to get app (%v/%v) from cluster: %v, err:%v", appNsn[0], appNsn[1], managedClusterName, err.Error())
-				continue
-			}
-
-			if len(related) == 0 {
-				klog.Infof("no data for app (%v/%v) found on cluster: %v", appNsn[0], appNsn[1], managedClusterName)
-				continue
-			}
-
-			v.Statuses.Resources = getResourceMapList(related, managedClusterName)
-			klog.V(1).Infof("resources for app (%v/%v): %v", appNsn[0], appNsn[1], v.Statuses.Resources)
-
-			break
 		}
 	}
 
@@ -330,11 +344,7 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(clusters []string, appsetNs, 
 	searchQuery := make(map[string]interface{})
 	searchQuery["variables"] = searchVars
 
-	if appsetNs != "" && appsetName != "" {
-		searchQuery["query"] = "query mySearch($input: [SearchInput]) {searchResult: search(input: $input) {items, related { kind count items }, count}}"
-	} else {
-		searchQuery["query"] = "query mySearch($input: [SearchInput]) {searchResult: search(input: $input) {items, count}}"
-	}
+	searchQuery["query"] = "query mySearch($input: [SearchInput]) {searchResult: search(input: $input) {items, related { kind count items }, count}}"
 
 	postBody, _ := json.Marshal(searchQuery)
 	klog.V(1).Infof("search: %v", string(postBody[:]))
@@ -383,43 +393,9 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(clusters []string, appsetNs, 
 	return items, related, nil
 }
 
-func (r *GitOpsSyncResource) createOrUpdateAppSetReportConditions(appReportsMap map[string]*appsetreport.MulticlusterApplicationSetReport,
-	appsetResource map[string]interface{}, managedClusterAppNameMap map[string]map[string]string) error {
-	appNs := appsetResource["namespace"].(string)
-	appName := appsetResource["name"].(string)
-	hostingAppsetName := appsetResource["_hostingResource"]
+func (r *GitOpsSyncResource) createOrUpdateAppSetReportConditions(report *appsetreport.MulticlusterApplicationSetReport,
+	appsetResource map[string]interface{}) {
 	managedClusterName := appsetResource["cluster"].(string)
-
-	// Skip application that don't belong to an appset
-	if hostingAppsetName == nil {
-		klog.Infof("skip application %v/%v on cluster %v, it does not belong to an appset", appNs, appName, managedClusterName)
-
-		return nil
-	}
-
-	appsetNsn := strings.Split(hostingAppsetName.(string), "/")
-	if len(appsetNsn) != 3 {
-		err := fmt.Errorf("_hostingResource is not in the correct format: %v", hostingAppsetName)
-		klog.Infof(err.Error())
-
-		return err
-	}
-
-	reportKey := appsetNsn[1] + "_" + appsetNsn[2]
-	klog.Info(fmt.Sprintf("report key: %v", reportKey))
-
-	report := appReportsMap[reportKey]
-	if report == nil {
-		klog.Info(fmt.Sprintf("creating new report with key: %v", reportKey))
-
-		report = &appsetreport.MulticlusterApplicationSetReport{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      reportKey,
-				Namespace: managedClusterName,
-			},
-		}
-		appReportsMap[reportKey] = report
-	}
 
 	var operationStateError *appsetreport.Condition
 
@@ -428,15 +404,6 @@ func (r *GitOpsSyncResource) createOrUpdateAppSetReportConditions(appReportsMap 
 	wCond, _ := regexp.Compile("_condition.*Warning")
 
 	for k, v := range appsetResource {
-		// Add app name to map
-		clusterAppsetNameMap := managedClusterAppNameMap[reportKey]
-		if len(clusterAppsetNameMap) == 0 {
-			clusterAppsetNameMap = make(map[string]string)
-			managedClusterAppNameMap[reportKey] = clusterAppsetNameMap
-		}
-
-		clusterAppsetNameMap[managedClusterName] = appNs + "_" + appName
-
 		if !eCond.MatchString(k) && !wCond.MatchString(k) {
 			continue
 		}
@@ -488,8 +455,6 @@ func (r *GitOpsSyncResource) createOrUpdateAppSetReportConditions(appReportsMap 
 	}
 	clusterConditions = append(clusterConditions, clusterCondition)
 	report.Statuses.ClusterConditions = clusterConditions
-
-	return nil
 }
 
 func (r *GitOpsSyncResource) writeAppSetResourceFile(report *appsetreport.MulticlusterApplicationSetReport) error {
@@ -510,28 +475,33 @@ func (r *GitOpsSyncResource) writeAppSetResourceFile(report *appsetreport.Multic
 	return nil
 }
 
-func getResourceMapList(related []interface{}, cluster string) []appsetreport.ResourceRef {
+func getResourceMapList(related []interface{}, relatedUID string) []appsetreport.ResourceRef {
+	klog.V(1).Infof("get resource list from related for parentUid: %v", relatedUID)
+
 	resourceList := make([]appsetreport.ResourceRef, 0)
 
 	for _, rel := range related {
 		if relatedmap, ok := rel.(map[string]interface{}); ok {
-			klog.Info(fmt.Sprintf("related: %v", relatedmap))
+			klog.V(1).Info(fmt.Sprintf("related: %v", relatedmap))
 
 			if slices.Contains(ExcludeResourceList, relatedmap["kind"].(string)) {
-				klog.Infof("skip resource kind: %v", relatedmap["kind"].(string))
+				klog.V(1).Infof("skip resource kind: %v", relatedmap["kind"].(string))
 				continue
 			}
 
 			if relatedItems, ok := relatedmap["items"].([]interface{}); ok {
 				for _, r := range relatedItems {
 					relatedItem := r.(map[string]interface{})
-					if itemCluster, ok := relatedItem["cluster"]; !ok || itemCluster != cluster {
-						klog.Infof("skip resource from cluster:%v", itemCluster)
+					if itemRelatedUID, ok := relatedItem["_relatedUids"]; !ok || len(itemRelatedUID.([]interface{})) == 0 ||
+						strings.Compare(relatedUID, itemRelatedUID.([]interface{})[0].(string)) != 0 {
+						klog.V(1).Infof("skip resource with relatedUid :%v", itemRelatedUID)
+
 						continue
 					}
 
 					if ownerUID, ok := relatedItem["_ownerUID"]; ok && ownerUID != "" {
-						klog.Infof("skip resource from _ownerUID:%v", ownerUID)
+						klog.V(1).Infof("skip resource from _ownerUID:%v", ownerUID)
+
 						continue
 					}
 
@@ -546,31 +516,63 @@ func getResourceMapList(related []interface{}, cluster string) []appsetreport.Re
 	return resourceList
 }
 
-func getResourceRef(relatedItem map[string]interface{}) *appsetreport.ResourceRef {
+func getMissingResourceMapList(appResource map[string]interface{}) []appsetreport.ResourceRef {
+	resourceList := make([]appsetreport.ResourceRef, 0)
+
+	if missingResources, ok := appResource["_missingResources"]; ok && missingResources != "" {
+		resources := make([]map[string]interface{}, 5)
+
+		if err := json.Unmarshal([]byte(missingResources.(string)), &resources); err != nil {
+			klog.Error("error parsing missing resource list", err)
+
+			return resourceList
+		}
+
+		for _, resource := range resources {
+			if slices.Contains(ExcludeResourceList, resource["kind"].(string)) {
+				klog.Infof("skip resource kind: %v", resource["kind"].(string))
+				continue
+			}
+
+			resourceRef := getResourceRef(resource)
+			klog.V(1).Infof("append resource: %v", resourceRef)
+
+			resourceList = append(resourceList, *resourceRef)
+		}
+	}
+
+	return resourceList
+}
+
+func getResourceRef(item map[string]interface{}) *appsetreport.ResourceRef {
 	apigroup := ""
-	if _apigroup, ok := relatedItem["apigroup"]; ok && _apigroup != "" {
+	if _apigroup, ok := item["apigroup"]; ok && _apigroup != "" {
 		apigroup = _apigroup.(string)
 	}
 
 	version := ""
-	if _version, ok := relatedItem["apiversion"]; ok && _version != "" {
+	if _version, ok := item["apiversion"]; ok && _version != "" {
 		version = _version.(string)
 	}
 
 	APIVersion := apigroup
 	if version != "" {
-		APIVersion = APIVersion + "/" + version
+		if APIVersion != "" {
+			APIVersion += "/"
+		}
+
+		APIVersion += version
 	}
 
 	namespace := ""
-	if _ns, ok := relatedItem["namespace"]; ok && _ns != "" {
+	if _ns, ok := item["namespace"]; ok && _ns != "" {
 		namespace = _ns.(string)
 	}
 
 	repRef := &appsetreport.ResourceRef{
 		APIVersion: APIVersion,
-		Kind:       relatedItem["kind"].(string),
-		Name:       relatedItem["name"].(string),
+		Kind:       item["kind"].(string),
+		Name:       item["name"].(string),
 		Namespace:  namespace,
 	}
 
