@@ -37,11 +37,14 @@ import (
 	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"open-cluster-management.io/multicloud-integrations/pkg/utils"
 
+	yaml "gopkg.in/yaml.v3"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -54,6 +57,7 @@ import (
 // ReconcileGitOpsCluster reconciles a GitOpsCluster object.
 type ReconcileGitOpsCluster struct {
 	client.Client
+	dynamic.DynamicClient
 	authClient kubernetes.Interface
 	scheme     *runtime.Scheme
 	lock       sync.Mutex
@@ -62,7 +66,12 @@ type ReconcileGitOpsCluster struct {
 // Add creates a new argocd cluster Controller and adds it to the Manager with default RBAC.
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+	reconciler, err := newReconciler(mgr)
+	if err != nil {
+		return err
+	}
+
+	return add(mgr, reconciler)
 }
 
 var _ reconcile.Reconciler = &ReconcileGitOpsCluster{}
@@ -70,18 +79,26 @@ var _ reconcile.Reconciler = &ReconcileGitOpsCluster{}
 var errInvalidPlacementRef = errors.New("invalid placement reference")
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
+func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
 	authCfg := mgr.GetConfig()
 	kubeClient := kubernetes.NewForConfigOrDie(authCfg)
 
-	dsRS := &ReconcileGitOpsCluster{
-		Client:     mgr.GetClient(),
-		scheme:     mgr.GetScheme(),
-		authClient: kubeClient,
-		lock:       sync.Mutex{},
+	dynamicClient, err := dynamic.NewForConfig(authCfg)
+	if err != nil {
+		klog.Error("failed to create dynamic client, error: ", err)
+
+		return nil, err
 	}
 
-	return dsRS
+	dsRS := &ReconcileGitOpsCluster{
+		Client:        mgr.GetClient(),
+		DynamicClient: *dynamicClient,
+		scheme:        mgr.GetScheme(),
+		authClient:    kubeClient,
+		lock:          sync.Mutex{},
+	}
+
+	return dsRS, nil
 }
 
 type placementDecisionMapper struct {
@@ -293,6 +310,28 @@ func (r *ReconcileGitOpsCluster) reconcileGitOpsCluster(
 	instance := gitOpsCluster.DeepCopy()
 
 	annotations := instance.GetAnnotations()
+
+	// Create default policy template
+	createPolicyTemplate := false
+	if instance.Spec.CreatePolicyTemplate != nil {
+		createPolicyTemplate = *instance.Spec.CreatePolicyTemplate
+	}
+
+	if createPolicyTemplate && instance.Spec.PlacementRef != nil &&
+		instance.Spec.PlacementRef.Kind == "Placement" &&
+		instance.Spec.ManagedServiceAccountRef != "" {
+		if err := r.createNamespaceScopedResourceFromYAML(generatePlacementYamlString(*instance)); err != nil {
+			klog.Error("failed to create default policy template local placement: ", err)
+		}
+
+		if err := r.createNamespaceScopedResourceFromYAML(generatePlacementBindingYamlString(*instance)); err != nil {
+			klog.Error("failed to create default policy template local placement binding, ", err)
+		}
+
+		if err := r.createNamespaceScopedResourceFromYAML(generatePolicyTemplateYamlString(*instance)); err != nil {
+			klog.Error("failed to create default policy template, ", err)
+		}
+	}
 
 	// 1. Verify that spec.argoServer.argoNamespace is a valid ArgoCD namespace
 	// skipArgoNamespaceVerify annotation just in case the service labels we use for verification change in future
@@ -1194,4 +1233,185 @@ func getManagedClusterURL(managedCluster *spokeclusterv1.ManagedCluster, token s
 	err := fmt.Errorf("failed to find an accessible URL for the managed cluster: %v", managedCluster.Name)
 
 	return "", err
+}
+
+func (r *ReconcileGitOpsCluster) createNamespaceScopedResourceFromYAML(yamlString string) error {
+	var obj map[string]interface{}
+	if err := yaml.Unmarshal([]byte(yamlString), &obj); err != nil {
+		klog.Error("failed to unmarshal yaml string: ", err)
+
+		return err
+	}
+
+	unstructuredObj := &unstructured.Unstructured{Object: obj}
+
+	// Get API resource information from unstructured object.
+	apiResource := unstructuredObj.GroupVersionKind().GroupVersion().WithResource(
+		strings.ToLower(unstructuredObj.GetKind()) + "s",
+	)
+
+	if apiResource.Resource == "policys" {
+		apiResource.Resource = "policies"
+	}
+
+	namespace := unstructuredObj.GetNamespace()
+	name := unstructuredObj.GetName()
+
+	// Check if the resource already exists.
+	existingObj, err := r.DynamicClient.Resource(apiResource).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err == nil {
+		// Resource exists, perform an update.
+		unstructuredObj.SetResourceVersion(existingObj.GetResourceVersion())
+		_, err = r.DynamicClient.Resource(apiResource).Namespace(namespace).Update(
+			context.TODO(),
+			unstructuredObj,
+			metav1.UpdateOptions{},
+		)
+
+		if err != nil {
+			klog.Error("failed to update resource: ", err)
+
+			return err
+		}
+
+		klog.Infof("resource updated: %s/%s\n", namespace, name)
+	} else if k8errors.IsNotFound(err) {
+		// Resource does not exist, create it.
+		_, err = r.DynamicClient.Resource(apiResource).Namespace(namespace).Create(
+			context.TODO(),
+			unstructuredObj,
+			metav1.CreateOptions{},
+		)
+		if err != nil {
+			klog.Error("failed to create resource: ", err)
+
+			return err
+		}
+		klog.Infof("resource created: %s/%s\n", namespace, name)
+	} else {
+		klog.Error("failed to get resource: ", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func generatePlacementYamlString(gitOpsCluster gitopsclusterV1beta1.GitOpsCluster) string {
+	yamlString := fmt.Sprintf(`
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: %s
+  namespace: %s
+  ownerReferences:
+  - apiVersion: apps.open-cluster-management.io/v1beta1
+    kind: GitOpsCluster
+    name: %s
+    uid: %s
+spec:
+  clusterSets:
+    - global
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchExpressions:
+            - key: local-cluster
+              operator: In
+              values:
+                - "true"
+`,
+		gitOpsCluster.Name+"-policy-local-placement", gitOpsCluster.Namespace,
+		gitOpsCluster.Name, string(gitOpsCluster.UID))
+
+	return yamlString
+}
+
+func generatePlacementBindingYamlString(gitOpsCluster gitopsclusterV1beta1.GitOpsCluster) string {
+	yamlString := fmt.Sprintf(`
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: %s
+  namespace: %s
+  ownerReferences:
+  - apiVersion: apps.open-cluster-management.io/v1beta1
+    kind: GitOpsCluster
+    name: %s
+    uid: %s
+placementRef:
+  name: %s
+  kind: Placement
+  apiGroup: cluster.open-cluster-management.io
+subjects:
+  - name: %s
+    kind: Policy
+    apiGroup: policy.open-cluster-management.io
+`,
+		gitOpsCluster.Name+"-policy-local-placement-binding", gitOpsCluster.Namespace,
+		gitOpsCluster.Name, string(gitOpsCluster.UID),
+		gitOpsCluster.Name+"-policy-local-placement", gitOpsCluster.Name+"-policy")
+
+	return yamlString
+}
+
+func generatePolicyTemplateYamlString(gitOpsCluster gitopsclusterV1beta1.GitOpsCluster) string {
+	yamlString := fmt.Sprintf(`
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: %s
+  namespace: %s
+  annotations:
+    policy.open-cluster-management.io/standards: NIST-CSF
+    policy.open-cluster-management.io/categories: PR.PT Protective Technology
+    policy.open-cluster-management.io/controls: PR.PT-3 Least Functionality
+  ownerReferences:
+  - apiVersion: apps.open-cluster-management.io/v1beta1
+    kind: GitOpsCluster
+    name: %s
+    uid: %s
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: %s
+        spec:
+          pruneObjectBehavior: DeleteIfCreated
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{ range $placedec := (lookup "cluster.open-cluster-management.io/v1beta1" "PlacementDecision" "%s" "" "cluster.open-cluster-management.io/placement=%s").items }}
+            {{ range $clustdec := $placedec.status.decisions }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: authentication.open-cluster-management.io/v1alpha1
+                kind: ManagedServiceAccount
+                metadata:
+                  name: %s
+                  namespace: {{ $clustdec.clusterName }}
+                spec:
+                  rotation: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.open-cluster-management.io/v1alpha1
+                kind: ClusterPermission
+                metadata:
+                  name: %s
+                  namespace: {{ $clustdec.clusterName }}
+                spec: {}
+            {{ end }}
+            {{ end }}
+`,
+		gitOpsCluster.Name+"-policy", gitOpsCluster.Namespace,
+		gitOpsCluster.Name, string(gitOpsCluster.UID),
+		gitOpsCluster.Name+"-config-policy",
+		gitOpsCluster.Namespace, gitOpsCluster.Spec.PlacementRef.Name,
+		gitOpsCluster.Spec.ManagedServiceAccountRef, gitOpsCluster.Name+"-cluster-permission")
+
+	return yamlString
 }

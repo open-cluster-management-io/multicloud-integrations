@@ -12,6 +12,8 @@ metadata:
   namespace: argocd
 spec:
   createBlankClusterSecrets: true
+  createPolicyTemplate: true
+  managedServiceAccountRef: "msa"
   argoServer:
     cluster: notused
     argoNamespace: argocd

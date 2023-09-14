@@ -51,6 +51,7 @@ type GitOpsClusterSpec struct {
 	// ManagedServiceAccountRef defines managed service account in the managed cluster namespace used to create the ArgoCD cluster secret.
 	ManagedServiceAccountRef  string `json:"managedServiceAccountRef,omitempty"`
 	CreateBlankClusterSecrets *bool  `json:"createBlankClusterSecrets,omitempty"`
+	CreatePolicyTemplate      *bool  `json:"createPolicyTemplate,omitempty"`
 }
 
 // ArgoServerSpec defines a argo server installed in a managed cluster.
