@@ -19,6 +19,7 @@ import (
 	"os"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	"open-cluster-management.io/multicloud-integrations/pkg/apis"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/klog"
 	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
@@ -65,10 +67,17 @@ func RunManager() {
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "multicloud-operators-gitopscluster-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
-		LeaseDuration:           &options.LeaderElectionLeaseDuration,
-		RenewDeadline:           &options.LeaderElectionRenewDeadline,
-		RetryPeriod:             &options.LeaderElectionRetryPeriod,
-		NewClient:               NewNonCachingClient,
+		NewCache: func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
+			opts.ByObject = map[client.Object]cache.ByObject{
+				&v1.Secret{}: {
+					Label: labels.SelectorFromSet(labels.Set{"apps.open-cluster-management.io/cluster-name,argocd.argoproj.io/secret-type": "cluster"}),
+				}}
+			return cache.New(config, opts)
+		},
+		LeaseDuration: &options.LeaderElectionLeaseDuration,
+		RenewDeadline: &options.LeaderElectionRenewDeadline,
+		RetryPeriod:   &options.LeaderElectionRetryPeriod,
+		NewClient:     NewNonCachingClient,
 	})
 
 	if err != nil {
