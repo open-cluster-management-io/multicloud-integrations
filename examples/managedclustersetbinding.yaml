@@ -6,4 +6,4 @@ metadata:
   name: all-openshift-clusters
   namespace: openshift-gitops
 spec:
-  clusterSet: all-openshift-clusters
+  clusterSet: all-openshift-clusters # Important: in newer releases use the 'global' or 'default' for clusterSet value instead.

@@ -1,4 +1,8 @@
 # Creates a ManagedClusterSet resource
+# Important: LabelSelector is no longer supported in newer releases.
+#            Use the existing 'global' or 'default' ManagedClusterSet instead.
+#            You do not need to apply this file.
+#            Skip to managedclustersetbinding.yaml.
 ---
 apiVersion: cluster.open-cluster-management.io/v1beta2
 kind: ManagedClusterSet
