@@ -25,7 +25,7 @@ import (
 	"github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+	authv1beta1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -87,7 +87,7 @@ func TestIsReadyManagedServiceAccount(t *testing.T) {
 	g.Expect(ret).To(gomega.BeFalse())
 
 	// Add CRD to scheme.
-	authv1alpha1.SchemeBuilder.AddToScheme(scheme.Scheme)
+	authv1beta1.SchemeBuilder.AddToScheme(scheme.Scheme)
 
 	mgr2, err := manager.New(cfgSub, manager.Options{MetricsBindAddress: "0"})
 	g.Expect(err).NotTo(gomega.HaveOccurred())

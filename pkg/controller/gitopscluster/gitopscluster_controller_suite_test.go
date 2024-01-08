@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/rest"
 	spokeClusterV1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
-	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+	authv1beta1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1beta1"
 	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 	clusterv1beta1.AddToScheme(scheme.Scheme)
 
 	gitopsclusterV1beta1.AddToScheme(scheme.Scheme)
-	authv1alpha1.AddToScheme(scheme.Scheme)
+	authv1beta1.AddToScheme(scheme.Scheme)
 
 	var err error
 	if cfg, err = t.Start(); err != nil {

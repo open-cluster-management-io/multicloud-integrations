@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	spokeClusterV1 "open-cluster-management.io/api/cluster/v1"
-	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+	authv1beta1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -60,7 +60,7 @@ func DetectClusterRegistry(ctx context.Context, clReader client.Reader) {
 
 // IsReadyManagedServiceAccount check if managedServiceAccount API is ready or not.
 func IsReadyManagedServiceAccount(clReader client.Reader) bool {
-	managedList := &authv1alpha1.ManagedServiceAccountList{}
+	managedList := &authv1beta1.ManagedServiceAccountList{}
 
 	listopts := &client.ListOptions{}
 
@@ -86,6 +86,6 @@ func DetectManagedServiceAccount(ctx context.Context, clReader client.Reader) {
 			if IsReadyManagedServiceAccount(clReader) {
 				os.Exit(1)
 			}
-		}, time.Duration(10)*time.Second)
+		}, time.Duration(300)*time.Second)
 	}
 }

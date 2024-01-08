@@ -9,7 +9,7 @@ set -o pipefail
 echo "SETUP install multicloud-integrations"
 kubectl config use-context kind-hub
 kubectl apply -f deploy/crds/
-kubectl apply -f hack/crds/0000_00_clusters.open-cluster-management.io_managedserviceaccounts.crd.yaml
+kubectl apply -f hack/test/crds/0000_00_authentication.open-cluster-management.io_managedserviceaccounts.yaml
 kubectl apply -f deploy/controller/
 
 sleep 120

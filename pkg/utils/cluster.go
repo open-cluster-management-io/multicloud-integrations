@@ -30,7 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	spokeClusterV1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
-	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+	authv1beta1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1beta1"
 	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -333,8 +333,8 @@ var ArgocdServerPredicateFunc = predicate.Funcs{
 
 var ManagedServiceAccountPredicateFunc = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldmsa := e.ObjectOld.(*authv1alpha1.ManagedServiceAccount)
-		newmsa := e.ObjectNew.(*authv1alpha1.ManagedServiceAccount)
+		oldmsa := e.ObjectOld.(*authv1beta1.ManagedServiceAccount)
+		newmsa := e.ObjectNew.(*authv1beta1.ManagedServiceAccount)
 
 		secretUpdated := !reflect.DeepEqual(oldmsa.Status.TokenSecretRef, newmsa.Status.TokenSecretRef)
 
@@ -343,7 +343,7 @@ var ManagedServiceAccountPredicateFunc = predicate.Funcs{
 		return secretUpdated
 	},
 	CreateFunc: func(e event.CreateEvent) bool {
-		msa := e.Object.(*authv1alpha1.ManagedServiceAccount)
+		msa := e.Object.(*authv1beta1.ManagedServiceAccount)
 
 		if msa.Status.TokenSecretRef != nil {
 			return true
@@ -354,7 +354,7 @@ var ManagedServiceAccountPredicateFunc = predicate.Funcs{
 		return false
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		msa := e.Object.(*authv1alpha1.ManagedServiceAccount)
+		msa := e.Object.(*authv1beta1.ManagedServiceAccount)
 
 		if msa.Status.TokenSecretRef != nil {
 			return true

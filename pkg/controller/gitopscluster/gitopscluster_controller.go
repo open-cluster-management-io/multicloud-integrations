@@ -45,7 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
-	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+	authv1beta1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -191,7 +191,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		// Watch changes to Managed service account's tokenSecretRef
 		if utils.IsReadyManagedServiceAccount(mgr.GetAPIReader()) {
 			err = c.Watch(
-				source.Kind(mgr.GetCache(), &authv1alpha1.ManagedServiceAccount{}),
+				source.Kind(mgr.GetCache(), &authv1beta1.ManagedServiceAccount{}),
 				&handler.EnqueueRequestForObject{},
 				utils.ManagedServiceAccountPredicateFunc)
 			if err != nil {
@@ -1023,7 +1023,7 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 func (r *ReconcileGitOpsCluster) CreateMangedClusterSecretFromManagedServiceAccount(argoNamespace string,
 	managedCluster *spokeclusterv1.ManagedCluster, managedServiceAccountRef string) (*v1.Secret, error) {
 	// Find managedserviceaccount in the managed cluster namespace
-	account := &authv1alpha1.ManagedServiceAccount{}
+	account := &authv1beta1.ManagedServiceAccount{}
 	if err := r.Get(context.TODO(), types.NamespacedName{Name: managedServiceAccountRef, Namespace: managedCluster.Name}, account); err != nil {
 		klog.Errorf("failed to get managed service account: %v/%v", managedCluster.Name, managedServiceAccountRef)
 
