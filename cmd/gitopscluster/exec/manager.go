@@ -29,7 +29,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
-	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+	authv1beta1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -108,7 +108,7 @@ func RunManager() {
 		os.Exit(1)
 	}
 
-	if err := authv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := authv1beta1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Error(err, "")
 		os.Exit(1)
 	}

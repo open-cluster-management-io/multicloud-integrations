@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
-	authv1alpha1 "open-cluster-management.io/managed-serviceaccount/api/v1alpha1"
+	authv1beta1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1beta1"
 	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -633,12 +633,12 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 	g.Expect(c.Create(context.TODO(), msaSecret)).NotTo(gomega.HaveOccurred())
 	defer c.Delete(context.TODO(), msaSecret)
 
-	msa := &authv1alpha1.ManagedServiceAccount{
+	msa := &authv1beta1.ManagedServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "managedserviceaccount1",
 			Namespace: managedClusterNamespace1.Name,
 		},
-		Spec: authv1alpha1.ManagedServiceAccountSpec{Rotation: authv1alpha1.ManagedServiceAccountRotation{Enabled: false}},
+		Spec: authv1beta1.ManagedServiceAccountSpec{Rotation: authv1beta1.ManagedServiceAccountRotation{Enabled: false}},
 	}
 
 	g.Expect(c.Create(context.TODO(), msa)).NotTo(gomega.HaveOccurred())
@@ -648,9 +648,9 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 
 	g.Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(msa), msa)).NotTo(gomega.HaveOccurred())
 
-	tokenRef := authv1alpha1.SecretRef{Name: msaSecret.Name, LastRefreshTimestamp: metav1.Now()}
+	tokenRef := authv1beta1.SecretRef{Name: msaSecret.Name, LastRefreshTimestamp: metav1.Now()}
 	etime := metav1.NewTime(time.Now().Add(30 * time.Second))
-	msa.Status = authv1alpha1.ManagedServiceAccountStatus{
+	msa.Status = authv1beta1.ManagedServiceAccountStatus{
 		TokenSecretRef:      &tokenRef,
 		ExpirationTimestamp: &etime,
 	}
@@ -1045,12 +1045,12 @@ func TestCreateMangedClusterSecretFromManagedServiceAccount(t *testing.T) {
 		mgrStopped.Wait()
 	}()
 
-	msa := &authv1alpha1.ManagedServiceAccount{
+	msa := &authv1beta1.ManagedServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "managedserviceaccount1",
 			Namespace: managedClusterNamespace1.Name,
 		},
-		Spec: authv1alpha1.ManagedServiceAccountSpec{Rotation: authv1alpha1.ManagedServiceAccountRotation{Enabled: false}},
+		Spec: authv1beta1.ManagedServiceAccountSpec{Rotation: authv1beta1.ManagedServiceAccountRotation{Enabled: false}},
 	}
 
 	msaSecret := &corev1.Secret{
@@ -1111,9 +1111,9 @@ func TestCreateMangedClusterSecretFromManagedServiceAccount(t *testing.T) {
 	// Has tokenSecretRef
 	g.Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(msa), msa)).NotTo(gomega.HaveOccurred())
 
-	tokenRef := authv1alpha1.SecretRef{Name: msaSecret.Name, LastRefreshTimestamp: metav1.Now()}
+	tokenRef := authv1beta1.SecretRef{Name: msaSecret.Name, LastRefreshTimestamp: metav1.Now()}
 	etime := metav1.NewTime(time.Now().Add(30 * time.Second))
-	msa.Status = authv1alpha1.ManagedServiceAccountStatus{
+	msa.Status = authv1beta1.ManagedServiceAccountStatus{
 		TokenSecretRef:      &tokenRef,
 		ExpirationTimestamp: &etime,
 	}
@@ -1133,8 +1133,8 @@ func TestCreateMangedClusterSecretFromManagedServiceAccount(t *testing.T) {
 	// Update MSA to a different secret token
 	g.Expect(c.Create(context.TODO(), msaSecret2)).NotTo(gomega.HaveOccurred())
 
-	tokenRef = authv1alpha1.SecretRef{Name: msaSecret2.Name, LastRefreshTimestamp: metav1.Now()}
-	msa.Status = authv1alpha1.ManagedServiceAccountStatus{
+	tokenRef = authv1beta1.SecretRef{Name: msaSecret2.Name, LastRefreshTimestamp: metav1.Now()}
+	msa.Status = authv1beta1.ManagedServiceAccountStatus{
 		TokenSecretRef:      &tokenRef,
 		ExpirationTimestamp: &etime,
 	}
