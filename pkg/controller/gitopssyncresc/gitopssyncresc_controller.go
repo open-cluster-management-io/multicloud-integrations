@@ -188,7 +188,7 @@ func (r *GitOpsSyncResource) syncResources() error {
 
 				// Skip application that don't belong to an appset
 				if hostingAppsetName == nil {
-					klog.Infof("skip application %v/%v on cluster %v, it does not belong to an appset", itemmap["namespace"], itemmap["name"], managedClusterName)
+					klog.V(1).Infof("skip application %v/%v on cluster %v, it does not belong to an appset", itemmap["namespace"], itemmap["name"], managedClusterName)
 					return nil
 				}
 
