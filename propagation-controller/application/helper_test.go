@@ -97,6 +97,7 @@ func Test_containsValidPullLabel(t *testing.T) {
 			want: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := containsValidPullLabel(tt.args.application); got != tt.want {
@@ -156,6 +157,7 @@ func Test_containsValidPullAnnotation(t *testing.T) {
 			want: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := containsValidPullAnnotation(tt.args.application); got != tt.want {
@@ -236,6 +238,7 @@ func Test_containsValidManifestWorkHubApplicationAnnotations(t *testing.T) {
 			want: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := containsValidManifestWorkHubApplicationAnnotations(tt.args.manifestWork); got != tt.want {
@@ -296,6 +299,7 @@ func Test_generateAppNamespace(t *testing.T) {
 			want: "argocd",
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := generateAppNamespace(tt.args.application); got != tt.want {
@@ -327,6 +331,7 @@ func Test_generateManifestWorkName(t *testing.T) {
 			want: "app1-abcde",
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := generateManifestWorkName(tt.args.application); got != tt.want {
@@ -371,21 +376,26 @@ func Test_prepareApplicationForWorkPayload(t *testing.T) {
 			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := prepareApplicationForWorkPayload(tt.args.application)
 			if !reflect.DeepEqual(got.Name, tt.want.Name) {
 				t.Errorf("prepareApplicationForWorkPayload() Name = %v, want %v", got.Name, tt.want.Name)
 			}
+
 			if !reflect.DeepEqual(got.Finalizers, tt.want.Finalizers) {
 				t.Errorf("prepareApplicationForWorkPayload() Finalizers = %v, want %v", got.Finalizers, tt.want.Finalizers)
 			}
+
 			if !reflect.DeepEqual(got.Namespace, tt.want.Namespace) {
 				t.Errorf("prepareApplicationForWorkPayload() Namespace = %v, want %v", got.Namespace, tt.want.Namespace)
 			}
+
 			if !reflect.DeepEqual(got.Spec.Destination, tt.want.Spec.Destination) {
 				t.Errorf("prepareApplicationForWorkPayload() Destination = %v, want %v", got.Spec.Destination, tt.want.Spec.Destination)
 			}
+
 			if got.Annotations[AnnotationKeyAppSkipReconcile] == "true" {
 				t.Errorf("prepareApplicationForWorkPayload() contains skip reconcile annotation set to true")
 			}
@@ -412,6 +422,7 @@ func Test_generateManifestWork(t *testing.T) {
 		namespace   string
 		application argov1alpha1.Application
 	}
+
 	type results struct {
 		workLabel map[string]string
 		workAnno  map[string]string
@@ -441,15 +452,18 @@ func Test_generateManifestWork(t *testing.T) {
 			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := generateManifestWork(tt.args.name, tt.args.namespace, tt.args.application)
 			if err != nil {
 				t.Errorf("generateManifestWork() = got err %v", err)
 			}
+
 			if !reflect.DeepEqual(got.Annotations, tt.want.workAnno) {
 				t.Errorf("generateManifestWork() = %v, want %v", got.Annotations, tt.want.workAnno)
 			}
+
 			if !reflect.DeepEqual(got.Labels, tt.want.workLabel) {
 				t.Errorf("generateManifestWork() = %v, want %v", got.Labels, tt.want.workLabel)
 			}
@@ -478,6 +492,7 @@ func Test_GenerateManifestWorkAppSetHashLabelValue(t *testing.T) {
 			wantErr: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := GenerateManifestWorkAppSetHashLabelValue(tt.args.appSetNamespace, tt.args.appSetName)
@@ -485,6 +500,7 @@ func Test_GenerateManifestWorkAppSetHashLabelValue(t *testing.T) {
 				t.Errorf("GenerateManifestWorkAppSetHashLabelValue() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if got != tt.want {
 				t.Errorf("GenerateManifestWorkAppSetHashLabelValue() = %v, want %v", got, tt.want)
 			}

@@ -31,13 +31,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 // Change below variables to serve metrics on different host or port.
 var (
-	metricsHost         = "0.0.0.0"
-	metricsPort         = 8383
-	operatorMetricsPort = 8686
+	metricsHost = "0.0.0.0"
+	metricsPort = 8383
 )
 
 // RunManager starts the actual manager
@@ -74,8 +74,9 @@ func RunManager() {
 		"retryPeriod", options.LeaderElectionRetryPeriod)
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
-		Port:                    operatorMetricsPort,
+		Metrics: metricsserver.Options{
+			BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		},
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "multicloud-operators-multiclusterstatusaggregation-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",

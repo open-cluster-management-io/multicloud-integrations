@@ -34,13 +34,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 // Change below variables to serve metrics on different host or port.
 var (
-	metricsHost         = "0.0.0.0"
-	metricsPort         = 8388
-	operatorMetricsPort = 8688
+	metricsHost = "0.0.0.0"
+	metricsPort = 8388
 )
 
 // RunManager starts the actual manager
@@ -62,8 +62,9 @@ func RunManager() {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
-		Port:                    operatorMetricsPort,
+		Metrics: metricsserver.Options{
+			BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		},
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "multicloud-operators-gitopscluster-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",

@@ -1206,11 +1206,11 @@ func getManagedClusterURL(managedCluster *spokeclusterv1.ManagedCluster, token s
 		caCertPool.AppendCertsFromPEM(config.CABundle)
 
 		httpClient := http.DefaultClient
-		// #nosec G402
+
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs:    caCertPool,
-				MinVersion: gitopsclusterV1beta1.TLSMinVersionInt,
+				MinVersion: gitopsclusterV1beta1.TLSMinVersionInt, //#nosec G402
 			},
 		}
 
@@ -1287,6 +1287,7 @@ func (r *ReconcileGitOpsCluster) createNamespaceScopedResourceFromYAML(yamlStrin
 
 			return err
 		}
+
 		klog.Infof("resource created: %s/%s\n", namespace, name)
 	} else {
 		klog.Error("failed to get resource: ", err)

@@ -26,6 +26,7 @@ import (
 	v1 "open-cluster-management.io/api/work/v1"
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -445,7 +446,12 @@ func TestReconcilePullModel(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	// Setup the Manager and Controller
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+
 	g.Expect(err).NotTo(HaveOccurred())
 
 	c = mgr.GetClient()

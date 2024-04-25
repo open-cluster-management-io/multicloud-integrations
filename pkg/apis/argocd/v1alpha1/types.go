@@ -259,7 +259,7 @@ type ApplicationDestination struct {
 	// Name is an alternate way of specifying the target cluster by its symbolic name
 	Name string `json:"name,omitempty" protobuf:"bytes,3,opt,name=name"`
 
-	// nolint:govet
+	//nolint:govet
 	// isServerInferred bool `json:"-"`
 }
 
@@ -330,7 +330,7 @@ type SyncOperationResource struct {
 	Kind      string `json:"kind" protobuf:"bytes,2,opt,name=kind"`
 	Name      string `json:"name" protobuf:"bytes,3,opt,name=name"`
 	Namespace string `json:"namespace,omitempty" protobuf:"bytes,4,opt,name=namespace"`
-	// nolint:govet
+	//nolint:govet
 	Exclude bool `json:"-"`
 }
 
@@ -603,7 +603,7 @@ const (
 	ApplicationConditionOrphanedResourceWarning = "OrphanedResourceWarning"
 )
 
-// ApplicationCondition contains details about an application condition, which is usally an error or warning
+// ApplicationCondition contains details about an application condition, which is usually an error or warning
 type ApplicationCondition struct {
 	// Type is an application condition type
 	Type ApplicationConditionType `json:"type" protobuf:"bytes,1,opt,name=type"`
@@ -880,7 +880,7 @@ type ExecProviderConfig struct {
 }
 
 // ClusterConfig is the configuration attributes. This structure is subset of the go-client
-// rest.Config with annotations added for marshalling.
+// rest.Config with annotations added for marshaling.
 type ClusterConfig struct {
 	// Server requires Basic authentication
 	Username string `json:"username,omitempty" protobuf:"bytes,1,opt,name=username"`

@@ -41,6 +41,7 @@ func containsValidPullLabel(application argov1alpha1.Application) bool {
 		if err != nil {
 			return false
 		}
+
 		return isPull
 	}
 
@@ -54,6 +55,7 @@ func containsValidPullAnnotation(application argov1alpha1.Application) bool {
 	}
 
 	managedClusterName, ok := annos[AnnotationKeyOCMManagedCluster]
+
 	return ok && len(managedClusterName) > 0
 }
 
@@ -76,6 +78,7 @@ func containsValidManifestWorkHubApplicationAnnotations(manifestWork workv1.Mani
 func generateAppNamespace(application argov1alpha1.Application) string {
 	annos := application.GetAnnotations()
 	appNamespace := annos[AnnotationKeyOCMManagedClusterAppNamespace]
+
 	if len(appNamespace) > 0 {
 		return appNamespace
 	}
@@ -145,6 +148,7 @@ func prepareApplicationForWorkPayload(application argov1alpha1.Application) argo
 	newApp.Spec.Destination.Server = argov1alpha1.KubernetesInternalAPIServerAddr
 	// copy the labels except for the ocm specific labels
 	newApp.Labels = make(map[string]string)
+
 	if len(application.Labels) > 0 {
 		for key, value := range application.Labels {
 			if key != LabelKeyPull {
@@ -154,6 +158,7 @@ func prepareApplicationForWorkPayload(application argov1alpha1.Application) argo
 	}
 	// copy the annos except for the ocm specific annos
 	newApp.Annotations = make(map[string]string)
+
 	if len(application.Annotations) > 0 {
 		for key, value := range application.Annotations {
 			if key != AnnotationKeyOCMManagedCluster &&

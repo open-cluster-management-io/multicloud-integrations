@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var (
@@ -325,7 +326,12 @@ var (
 func TestReconcileCreateSecretInArgo(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	c = mgr.GetClient()
@@ -430,7 +436,11 @@ func TestReconcileCreateSecretInArgo(t *testing.T) {
 func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	c = mgr.GetClient()
@@ -513,7 +523,12 @@ func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
 func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	c = mgr.GetClient()
@@ -759,7 +774,12 @@ func expectedRbacCreated(c client.Client, expectedDetails types.NamespacedName) 
 func TestReconcileDeleteOrphanSecret(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	c = mgr.GetClient()
@@ -1030,7 +1050,12 @@ func TestUnionSecretData(t *testing.T) {
 func TestCreateMangedClusterSecretFromManagedServiceAccount(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	c = mgr.GetClient()
@@ -1237,7 +1262,12 @@ func TestGetAllNonAcmManagedClusterSecretsInArgo(t *testing.T) {
 
 	g := gomega.NewGomegaWithT(t)
 
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	c = mgr.GetClient()
@@ -1527,7 +1557,12 @@ spec:
 func Test_createNamespaceScopedResourceFromYAML(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	c = mgr.GetClient()
@@ -1575,6 +1610,8 @@ data:
 
 	err = gitopsc.(*ReconcileGitOpsCluster).createNamespaceScopedResourceFromYAML(configMapYaml)
 	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(time.Second * 3)
 
 	g.Expect(c.Get(context.TODO(),
 		types.NamespacedName{Namespace: "default", Name: "test-configmap"},

@@ -45,6 +45,7 @@ import (
 
 	"github.com/stolostron/search-v2-api/graph/model"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
+	gitopsclusterV1beta1 "open-cluster-management.io/multicloud-integrations/pkg/apis/apps/v1beta1"
 	appsetreport "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
 )
 
@@ -290,10 +291,10 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(clusters []string, appsetNs, 
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		// #nosec G402
+
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true,                                  //#nosec G402
+			MinVersion:         gitopsclusterV1beta1.TLSMinVersionInt, //#nosec G402
 		},
 	}
 
@@ -381,14 +382,14 @@ func (r *GitOpsSyncResource) getArgoAppsFromSearch(clusters []string, appsetNs, 
 		items = searchResultData[0].(map[string]interface{})["items"].([]interface{})
 	}
 
-	klog.V(1).Infof("Items: %v", items)
+	klog.V(1).Infof("Items: %v", fmt.Sprintf("%v ", items))
 
 	var related []interface{}
 	if r, ok := searchResultData[0].(map[string]interface{})["related"]; ok && r != nil {
 		related = searchResultData[0].(map[string]interface{})["related"].([]interface{})
 	}
 
-	klog.V(1).Infof("Related: %v", related)
+	klog.V(1).Infof("Related: %v", fmt.Sprintf("%v ", related))
 
 	return items, related, nil
 }

@@ -325,6 +325,7 @@ func TestGitOpsSyncResource_getSearchURL(t *testing.T) {
 				Interval:    60,
 				ResourceDir: "/tmp",
 			}
+
 			if tt.service != nil {
 				if err := c.Create(context.TODO(), tt.service, &client.CreateOptions{}); err != nil {
 					t.Errorf("GitOpsSyncResource.getSearchURL() error creating service = %v", err)
@@ -337,6 +338,7 @@ func TestGitOpsSyncResource_getSearchURL(t *testing.T) {
 				t.Errorf("GitOpsSyncResource.getSearchURL() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if got != tt.want {
 				t.Errorf("GitOpsSyncResource.getSearchURL() = %v, want %v", got, tt.want)
 			}
@@ -392,6 +394,7 @@ func TestGitOpsSyncResource_syncResources(t *testing.T) {
 				ResourceDir: "/tmp",
 				DataSender:  &TestDataSender{tt.data},
 			}
+
 			if tt.managedcluster != nil {
 				if err := c.Create(context.TODO(), tt.managedcluster, &client.CreateOptions{}); err != nil {
 					t.Errorf("GitOpsSyncResource.syncResources() error creating managed cluster = %v", err)

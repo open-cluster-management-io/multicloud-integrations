@@ -96,6 +96,7 @@ func CheckAndInstallCRD(crdconfig *rest.Config, pathname string) error {
 			klog.Info("CRD ", crdobj.GetName(), " is being updated with ", pathname)
 			crdobj.Spec.DeepCopyInto(&crd.Spec)
 			_, err = crdClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.TODO(), crd, metav1.UpdateOptions{})
+
 			if err != nil {
 				klog.Fatal("Updating CRD", err.Error())
 				return err
@@ -103,6 +104,7 @@ func CheckAndInstallCRD(crdconfig *rest.Config, pathname string) error {
 		} else {
 			klog.Info("CRD ", crdobj.GetName(), " exists: ", pathname)
 		}
+
 		return err
 	}
 
