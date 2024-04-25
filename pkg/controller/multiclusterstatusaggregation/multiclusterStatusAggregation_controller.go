@@ -661,7 +661,7 @@ func GetMemUsage(title string) string {
 	runtime.ReadMemStats(&m)
 
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	usage := fmt.Sprintf("%v", title)
+	usage := title
 	usage += fmt.Sprintf("\nAlloc = %v MiB", bToMb(m.Alloc))
 	usage += fmt.Sprintf("\n\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
 	usage += fmt.Sprintf("\n\tSys = %v MiB", bToMb(m.Sys))

@@ -42,6 +42,7 @@ import (
 	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	"open-cluster-management.io/multicloud-integrations/propagation-controller/application"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 // PropagationCMDOptions for command line flag parsing
@@ -62,11 +63,10 @@ var options = PropagationCMDOptions{
 }
 
 var (
-	scheme              = runtime.NewScheme()
-	setupLog            = ctrl.Log.WithName("setup")
-	metricsHost         = "0.0.0.0"
-	metricsPort         = 8386
-	operatorMetricsPort = 8698
+	scheme      = runtime.NewScheme()
+	setupLog    = ctrl.Log.WithName("setup")
+	metricsHost = "0.0.0.0"
+	metricsPort = 8386
 )
 
 func init() {
@@ -79,6 +79,7 @@ func init() {
 
 func main() {
 	var enableLeaderElection bool
+
 	flag.StringVar(
 		&options.MetricsAddr,
 		"metrics-addr",
@@ -137,9 +138,10 @@ func main() {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      fmt.Sprintf("%s:%d", metricsHost, metricsPort),
-		Port:                    operatorMetricsPort,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		},
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "multicloud-operators-propagation-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
@@ -189,6 +191,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
+
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

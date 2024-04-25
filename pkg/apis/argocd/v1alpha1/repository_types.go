@@ -50,7 +50,7 @@ type Repository struct {
 	SSHPrivateKey string `json:"sshPrivateKey,omitempty" protobuf:"bytes,4,opt,name=sshPrivateKey"`
 	// ConnectionState contains information about the current state of connection to the repository server
 	ConnectionState ConnectionState `json:"connectionState,omitempty" protobuf:"bytes,5,opt,name=connectionState"`
-	// InsecureIgnoreHostKey should not be used anymore, Insecure is favoured
+	// InsecureIgnoreHostKey should not be used anymore, Insecure is favored
 	// Used only for Git repos
 	InsecureIgnoreHostKey bool `json:"insecureIgnoreHostKey,omitempty" protobuf:"bytes,6,opt,name=insecureIgnoreHostKey"`
 	// Insecure specifies whether the connection to the repository ignores any errors when verifying TLS certificates or SSH host keys

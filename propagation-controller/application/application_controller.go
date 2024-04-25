@@ -42,7 +42,7 @@ const (
 	AnnotationKeyOCMManagedClusterAppNamespace = "apps.open-cluster-management.io/ocm-managed-cluster-app-namespace"
 	// Application and ManifestWork annotation that shows which ApplicationSet is the grand parent of this work
 	AnnotationKeyAppSet = "apps.open-cluster-management.io/hosting-applicationset"
-	// Application annotation that enables the skip reconcilation of an application
+	// Application annotation that enables the skip reconciliation of an application
 	AnnotationKeyAppSkipReconcile = "argocd.argoproj.io/skip-reconcile"
 	// ManifestWork annotation that shows the namespace of the hub Application.
 	AnnotationKeyHubApplicationNamespace = "apps.open-cluster-management.io/hub-application-namespace"
@@ -147,6 +147,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		// delete the ManifestWork associated with this Application
 		var work workv1.ManifestWork
 		err := r.Get(ctx, types.NamespacedName{Name: mwName, Namespace: managedClusterName}, &work)
+
 		if errors.IsNotFound(err) {
 			// already deleted ManifestWork, commit the Application finalizer removal
 			if err = r.Update(ctx, &application); err != nil {
@@ -181,6 +182,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("generating ManifestWork for Application")
 	w, err := generateManifestWork(mwName, managedClusterName, application)
+
 	if err != nil {
 		log.Error(err, "unable to generating ManifestWork")
 		return ctrl.Result{}, err
@@ -189,6 +191,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// create or update the ManifestWork depends if it already exists or not
 	var mw workv1.ManifestWork
 	err = r.Get(ctx, types.NamespacedName{Name: mwName, Namespace: managedClusterName}, &mw)
+
 	if errors.IsNotFound(err) {
 		err = r.Client.Create(ctx, w)
 		if err != nil {
@@ -200,6 +203,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		mw.Labels = w.Labels
 		mw.Spec = w.Spec
 		err = r.Client.Update(ctx, &mw)
+
 		if err != nil {
 			log.Error(err, "unable to update ManifestWork")
 			return ctrl.Result{}, err

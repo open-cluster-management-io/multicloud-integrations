@@ -140,7 +140,7 @@ var _ = Describe("Application Pull controller", func() {
 			Expect(k8sClient.Update(ctx, &app2)).Should(Succeed())
 			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
 			Expect(app2.Status.Health.Status == "Healthy").Should(BeTrue())
-			// TODO figure how to to verify it didn't reconcile again without using debugger
+			// TODO figure how to verify it didn't reconcile again without using debugger
 
 			By("Deleting the Application")
 			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())

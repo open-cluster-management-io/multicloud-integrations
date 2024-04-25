@@ -164,7 +164,7 @@ type MatrixGenerator struct {
 // within the constituent generators of combination-type generators.
 //
 // NOTE: Nested matrix generator is not included directly in the CRD struct, instead it is included
-// as a generic 'apiextensionsv1.JSON' object, and then marshalled into a NestedMatrixGenerator
+// as a generic 'apiextensionsv1.JSON' object, and then marshaled into a NestedMatrixGenerator
 // when processed.
 type NestedMatrixGenerator struct {
 	Generators ApplicationSetTerminalGenerators `json:"generators" protobuf:"bytes,1,name=generators"`
@@ -191,7 +191,7 @@ type MergeGenerator struct {
 // within the constituent generators of combination-type generators.
 //
 // NOTE: Nested merge generator is not included directly in the CRD struct, instead it is included
-// as a generic 'apiextensionsv1.JSON' object, and then marshalled into a NestedMergeGenerator
+// as a generic 'apiextensionsv1.JSON' object, and then marshaled into a NestedMergeGenerator
 // when processed.
 type NestedMergeGenerator struct {
 	Generators ApplicationSetTerminalGenerators `json:"generators" protobuf:"bytes,1,name=generators"`
@@ -453,7 +453,7 @@ type ApplicationSetStatus struct {
 	ApplicationStatus []ApplicationSetApplicationStatus `json:"applicationStatus,omitempty" protobuf:"bytes,2,name=applicationStatus"`
 }
 
-// ApplicationSetCondition contains details about an applicationset condition, which is usally an error or warning
+// ApplicationSetCondition contains details about an applicationset condition, which is usually an error or warning
 type ApplicationSetCondition struct {
 	// Type is an applicationset condition type
 	Type ApplicationSetConditionType `json:"type" protobuf:"bytes,1,opt,name=type"`

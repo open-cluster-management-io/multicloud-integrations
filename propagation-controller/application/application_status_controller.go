@@ -85,6 +85,7 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 
 				log.Error(err, "unable to fetch Application")
+
 				return ctrl.Result{}, err
 			}
 
@@ -94,6 +95,7 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			if cc.SyncStatus != "" {
 				newStatus.Sync.Status = argov1alpha1.SyncStatusCode(cc.SyncStatus)
 			}
+
 			if cc.HealthStatus != "" {
 				newStatus.Health.Status = cc.HealthStatus
 			}
