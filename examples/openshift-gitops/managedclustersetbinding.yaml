@@ -3,7 +3,7 @@
 apiVersion: cluster.open-cluster-management.io/v1beta2
 kind: ManagedClusterSetBinding
 metadata:
-  name: all-openshift-clusters
+  name: global
   namespace: openshift-gitops
 spec:
-  clusterSet: all-openshift-clusters
+  clusterSet: global

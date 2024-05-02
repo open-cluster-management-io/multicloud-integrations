@@ -10,7 +10,7 @@ with the `vendor: OpenShift` label into OpenShift GitOps (Argo CD).
 ## Configure
 * Apply the following:
    ```shell
-   kubectl apply -f .
+   kubectl apply -f ./openshift-gitops
    ```
 * Any OpenShift clusters with the correct label will be imported into the Argo CD provisioned by OpenShift GitOps.
 * Check the Openshift GitOps (Argo CD) Configuration tab, to see the list of clusters

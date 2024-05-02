@@ -40,6 +40,9 @@ GOHOSTARCH ?= $(shell go env GOHOSTARCH)
 KB_TOOLS_ARCHIVE_NAME :=kubebuilder-tools-$(K8S_VERSION)-$(GOHOSTOS)-$(GOHOSTARCH).tar.gz
 KB_TOOLS_ARCHIVE_PATH := $(TEST_TMP)/$(KB_TOOLS_ARCHIVE_NAME)
 
+# specify the tag for ocm foundation images used in e2e test
+OCM_IMAGE_TAG ?= v0.13.0
+
 .PHONY: build
 
 build:
@@ -113,7 +116,7 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 
 .PHONY: deploy-ocm
 deploy-ocm:
-	deploy/ocm/install.sh
+	IMAGE_TAG=$(OCM_IMAGE_TAG) deploy/ocm/install.sh
 
 .PHONY: test-e2e
 test-e2e: deploy-ocm
