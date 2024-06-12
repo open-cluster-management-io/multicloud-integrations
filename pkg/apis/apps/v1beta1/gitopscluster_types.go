@@ -33,7 +33,7 @@ const (
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope="Namespaced"
 
-// GitOpsCluster is the Schema for the gitopsclusters API.
+// The GitOpsCluster uses placement to import selected managed clusters into the Argo CD.
 type GitOpsCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
@@ -46,17 +46,26 @@ type GitOpsCluster struct {
 
 // GitOpsClusterSpec defines the desired state of GitOpsCluster.
 type GitOpsClusterSpec struct {
-	ArgoServer   ArgoServerSpec          `json:"argoServer"`
+	ArgoServer ArgoServerSpec `json:"argoServer"`
+
 	PlacementRef *corev1.ObjectReference `json:"placementRef"`
+
 	// ManagedServiceAccountRef defines managed service account in the managed cluster namespace used to create the ArgoCD cluster secret.
-	ManagedServiceAccountRef  string `json:"managedServiceAccountRef,omitempty"`
-	CreateBlankClusterSecrets *bool  `json:"createBlankClusterSecrets,omitempty"`
-	CreatePolicyTemplate      *bool  `json:"createPolicyTemplate,omitempty"`
+	ManagedServiceAccountRef string `json:"managedServiceAccountRef,omitempty"`
+
+	// Internally used.
+	CreateBlankClusterSecrets *bool `json:"createBlankClusterSecrets,omitempty"`
+
+	// Create default policy template if it is true.
+	CreatePolicyTemplate *bool `json:"createPolicyTemplate,omitempty"`
 }
 
-// ArgoServerSpec defines a argo server installed in a managed cluster.
+// ArgoServerSpec specifies the location of the Argo CD server.
 type ArgoServerSpec struct {
-	Cluster       string `json:"cluster,omitempty"`
+	// Not used and reserved for defining a managed cluster name.
+	Cluster string `json:"cluster,omitempty"`
+
+	// ArgoNamespace is the namespace in which the Argo CD server is installed.
 	ArgoNamespace string `json:"argoNamespace"`
 }
 
@@ -64,14 +73,19 @@ type ArgoServerSpec struct {
 
 // GitOpsClusterStatus defines the observed state of GitOpsCluster.
 type GitOpsClusterStatus struct {
+	// LastUpdateTime provides the last updated timestamp of the gitOpsCluster status
 	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
-	Message        string      `json:"message,omitempty"`
-	Phase          string      `json:"phase,omitempty"`
+
+	// Message provides the detailed message of the GitOpsCluster status.
+	Message string `json:"message,omitempty"`
+
+	// Phase provides the overall phase of the GitOpsCluster status. Valid values include failed or successful.
+	Phase string `json:"phase,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// GitOpsClusterList contains a list of GitOpsCluster.
+// GitOpsClusterList providess a list of GitOpsClusters.
 type GitOpsClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
