@@ -2,6 +2,8 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
   name: gitopsclusters.apps.open-cluster-management.io
 spec:
   group: apps.open-cluster-management.io
@@ -15,7 +17,8 @@ spec:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: GitOpsCluster is the Schema for the gitopsclusters API.
+        description: The GitOpsCluster uses placement to import selected managed clusters
+          into the Argo CD.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,19 +36,25 @@ spec:
             description: GitOpsClusterSpec defines the desired state of GitOpsCluster.
             properties:
               argoServer:
-                description: ArgoServerSpec defines a argo server installed in a managed
-                  cluster.
+                description: ArgoServerSpec specifies the location of the Argo CD
+                  server.
                 properties:
                   argoNamespace:
+                    description: ArgoNamespace is the namespace in which the Argo
+                      CD server is installed.
                     type: string
                   cluster:
+                    description: Not used and reserved for defining a managed cluster
+                      name.
                     type: string
                 required:
                 - argoNamespace
                 type: object
               createBlankClusterSecrets:
+                description: Internally used.
                 type: boolean
               createPolicyTemplate:
+                description: Create default policy template if it is true.
                 type: boolean
               managedServiceAccountRef:
                 description: ManagedServiceAccountRef defines managed service account
@@ -111,6 +120,7 @@ spec:
                     description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                     type: string
                 type: object
+                x-kubernetes-map-type: atomic
             required:
             - argoServer
             - placementRef
@@ -119,11 +129,17 @@ spec:
             description: GitOpsClusterStatus defines the observed state of GitOpsCluster.
             properties:
               lastUpdateTime:
+                description: LastUpdateTime provides the last updated timestamp of
+                  the gitOpsCluster status
                 format: date-time
                 type: string
               message:
+                description: Message provides the detailed message of the GitOpsCluster
+                  status.
                 type: string
               phase:
+                description: Phase provides the overall phase of the GitOpsCluster
+                  status. Valid values include failed or successful.
                 type: string
             type: object
         required:
@@ -134,9 +150,3 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
