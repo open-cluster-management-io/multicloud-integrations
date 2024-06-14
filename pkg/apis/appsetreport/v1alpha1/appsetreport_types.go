@@ -18,9 +18,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// MulticlusterApplicationSetReport provides a report of the status of an application from all the managed clusters
+// where the application is deployed on. It provides a summary of the number of clusters in the various states.
+// If an error or warning occurred when installing the application on a managed cluster, the conditions, including
+// the waring and error message, is captured in the report.
 // +kubebuilder:object:root=true
-
-// MulticlusterApplicationSetReport is the Schema for the MulticlusterApplicationSetReport API.
 // +kubebuilder:resource:scope="Namespaced"
 // +kubebuilder:resource:shortName=appsetreport;appsetreports
 type MulticlusterApplicationSetReport struct {
@@ -30,16 +32,15 @@ type MulticlusterApplicationSetReport struct {
 	Statuses AppConditions `json:"statuses,omitempty"`
 }
 
+// MulticlusterApplicationSetReportList contains a list of MulticlusterApplicationSetReports.
 // +kubebuilder:object:root=true
-
-// MulticlusterApplicationSetReportList contains a list of MulticlusterApplicationSetReport.
 type MulticlusterApplicationSetReportList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []MulticlusterApplicationSetReport `json:"items"`
 }
 
-// ResourceRef defines a kind of resource
+// ResourceRef identifies the resource that is deployed by the application.
 type ResourceRef struct {
 	APIVersion string `json:"apiVersion,omitempty"`
 	Kind       string `json:"kind,omitempty"`
@@ -49,11 +50,14 @@ type ResourceRef struct {
 
 // Condition defines a type of error/warning
 type Condition struct {
-	Type    string `json:"type,omitempty"`
+	// Type identifies if the condition is a warning or an error.
+	Type string `json:"type,omitempty"`
+
+	// Message is the warning/error message associated with this condition.
 	Message string `json:"message,omitempty"`
 }
 
-// ClusterCondition defines all the error/warning conditions in one cluster per application
+// ClusterCondition defines all the error/warning conditions in one cluster for an application.
 type ClusterCondition struct {
 	Cluster      string      `json:"cluster,omitempty"`
 	SyncStatus   string      `json:"syncStatus,omitempty"`
@@ -62,7 +66,7 @@ type ClusterCondition struct {
 	Conditions   []Condition `json:"conditions,omitempty"`
 }
 
-// AppConditions defines all the error/warning conditions in all clusters per application
+// AppConditions defines all the error/warning conditions in all clusters where a particular application is deployed.
 type AppConditions struct {
 	// +optional
 	Resources []ResourceRef `json:"resources,omitempty"`
@@ -70,34 +74,36 @@ type AppConditions struct {
 	// +optional
 	ClusterConditions []ClusterCondition `json:"clusterConditions,omitempty"`
 
-	// Summary provides a summary of results
 	// +optional
 	Summary ReportSummary `json:"summary,omitempty"`
 }
 
+// ReportSummary provides a summary by providing a count of the total number of clusters where the application is
+// deployed. It also provides a count of how many clusters where an application are in the following states:
+// synced, notSynced, healthy, notHealthy, and inProgress.
 type ReportSummary struct {
 
-	// Synced provides the count of synced applications
+	// Synced provides the count of synced applications.
 	// +optional
 	Synced string `json:"synced"`
 
-	// NotSynced provides the count of the out of sync applications
+	// NotSynced provides the count of the out of sync applications.
 	// +optional
 	NotSynced string `json:"notSynced"`
 
-	// Healthy provides the count of healthy applications
+	// Healthy provides the count of healthy applications.
 	// +optional
 	Healthy string `json:"healthy"`
 
-	// NotHealthy provides the count of non-healthy applications
+	// NotHealthy provides the count of non-healthy applications.
 	// +optional
 	NotHealthy string `json:"notHealthy"`
 
-	// InProgress provides the count of applications that are in the process of being deployed
+	// InProgress provides the count of applications that are in the process of being deployed.
 	// +optional
 	InProgress string `json:"inProgress"`
 
-	// Clusters provides the count of all managed clusters the application is deployed to
+	// Clusters provides the count of all managed clusters the application is deployed.
 	// +optional
 	Clusters string `json:"clusters"`
 }
