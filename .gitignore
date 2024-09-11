@@ -1,3 +1,4 @@
 build/_output
 build/_test
 bin/
+*.out

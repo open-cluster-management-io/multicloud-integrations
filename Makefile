@@ -34,7 +34,7 @@ export GOPACKAGES   = $(shell go list ./... | grep -v /manager | grep -v /bindat
 
 TEST_TMP :=/tmp
 export KUBEBUILDER_ASSETS ?=$(TEST_TMP)/kubebuilder/bin
-K8S_VERSION ?=1.19.2
+K8S_VERSION ?=1.28.3
 GOHOSTOS ?=$(shell go env GOHOSTOS)
 GOHOSTARCH ?= $(shell go env GOHOSTARCH)
 KB_TOOLS_ARCHIVE_NAME :=kubebuilder-tools-$(K8S_VERSION)-$(GOHOSTOS)-$(GOHOSTARCH).tar.gz

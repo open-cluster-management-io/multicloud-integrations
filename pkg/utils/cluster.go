@@ -60,6 +60,10 @@ var ClusterPredicateFunc = predicate.Funcs{
 			return true
 		}
 
+		if !reflect.DeepEqual(oldcl.Spec.ManagedClusterClientConfigs, newcl.Spec.ManagedClusterClientConfigs) {
+			return true
+		}
+
 		oldcondMap := make(map[string]metav1.ConditionStatus)
 		for _, cond := range oldcl.Status.Conditions {
 			oldcondMap[cond.Type] = cond.Status

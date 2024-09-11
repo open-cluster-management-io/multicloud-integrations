@@ -66,6 +66,8 @@ type HTTPDataSender struct{}
 func (c *HTTPDataSender) Send(httpClient *http.Client, req *http.Request) (map[string]interface{}, error) {
 	respData := make(map[string]interface{})
 
+	klog.V(1).Infof("http reqeust: %v", req)
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		klog.Info(err.Error())
@@ -152,6 +154,7 @@ func (r *GitOpsSyncResource) syncResources() error {
 	appReportsMap := make(map[string]*appsetreport.MulticlusterApplicationSetReport)
 
 	// Query search for argo apps
+	// get all managed clusters not containing the local-cluster: true label
 	managedclusters, err := getAllManagedClusterNames(r.Client)
 	if err != nil {
 		return err
@@ -165,11 +168,9 @@ func (r *GitOpsSyncResource) syncResources() error {
 		queryManagedClustersStr := []string{}
 
 		for len(queryManagedClusters) < 20 && iManagedCluster < mangedClusterTotal {
-			// Ignore local-cluster
-			if managedclusters[iManagedCluster].Name != "local-cluster" {
-				queryManagedClusters = append(queryManagedClusters, managedclusters[iManagedCluster])
-				queryManagedClustersStr = append(queryManagedClustersStr, managedclusters[iManagedCluster].Name)
-			}
+			// Ignore local-cluster. managedclusters only include all managed clusters not containing the local-cluster: true label
+			queryManagedClusters = append(queryManagedClusters, managedclusters[iManagedCluster])
+			queryManagedClustersStr = append(queryManagedClustersStr, managedclusters[iManagedCluster].Name)
 
 			iManagedCluster++
 		}
@@ -250,7 +251,16 @@ func getAllManagedClusterNames(c client.Client) ([]clusterv1.ManagedCluster, err
 		return nil, err
 	}
 
-	return managedclusters.Items, nil
+	filteredClusters := []clusterv1.ManagedCluster{}
+
+	for _, cluster := range managedclusters.Items {
+		if value, exists := cluster.Labels["local-cluster"]; exists && value == "true" {
+			continue
+		}
+		filteredClusters = append(filteredClusters, cluster)
+	}
+
+	return filteredClusters, nil
 }
 
 func (r *GitOpsSyncResource) getSearchURL() (string, error) {

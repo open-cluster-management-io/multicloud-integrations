@@ -152,6 +152,31 @@ var (
 		},
 	}
 
+	// Test5 resources
+	test5Ns = &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test5",
+		},
+	}
+
+	test5Pl = &clusterv1beta1.Placement{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-placement-5",
+			Namespace: test5Ns.Name,
+		},
+		Spec: clusterv1beta1.PlacementSpec{},
+	}
+
+	test5PlDc = &clusterv1beta1.PlacementDecision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-placement-decision-5",
+			Namespace: test5Ns.Name,
+			Labels: map[string]string{
+				"cluster.open-cluster-management.io/placement": "test-placement-5",
+			},
+		},
+	}
+
 	// Namespace where GitOpsCluster1 CR is
 	testNamespace1 = &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -214,6 +239,32 @@ var (
 			"server": "https://api.cluster1.com:6443",
 			"config": "test-bearer-token-1",
 		},
+	}
+
+	gitopsServerNamespace5 = &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "openshift-gitops5",
+		},
+	}
+
+	managedClusterSecret5 = &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster1-cluster-secret",
+			Namespace: "cluster1",
+			Labels: map[string]string{
+				"apps.open-cluster-management.io/secret-type": "acm-cluster",
+			},
+		},
+		StringData: map[string]string{
+			"name":   "cluster1",
+			"server": "",
+			"config": "{\"bearerToken\": \"fakeToken1\", \"tlsClientConfig\": {\"insecure\": true}}",
+		},
+	}
+
+	gitOpsClusterSecret5Key = types.NamespacedName{
+		Name:      "cluster1-cluster-secret",
+		Namespace: gitopsServerNamespace5.Name,
 	}
 
 	managedClusterSecret10 = &corev1.Secret{
@@ -701,6 +752,128 @@ func TestReconcileCreateSecretInOpenshiftGitops(t *testing.T) {
 
 		g2.Expect(err).ToNot(gomega.BeNil())
 	}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
+}
+
+// test managed cluster secret creation for non OCP clusters
+func TestReconcileNonOCPCreateSecretInOpenshiftGitops(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	c = mgr.GetClient()
+
+	reconciler, err := newReconciler(mgr)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	recFn := SetupTestReconcile(reconciler)
+	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
+
+	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
+	mgrStopped := StartTestManager(ctx, mgr, g)
+
+	defer func() {
+		cancel()
+		mgrStopped.Wait()
+	}()
+
+	// Set up test environment
+	c.Create(context.TODO(), test5Ns)
+
+	// Create placement
+	g.Expect(c.Create(context.TODO(), test5Pl.DeepCopy())).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), test5Pl)
+
+	// Create placement decision
+	g.Expect(c.Create(context.TODO(), test5PlDc.DeepCopy())).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), test5PlDc)
+
+	time.Sleep(time.Second * 3)
+
+	// Update placement decision status
+	placementDecision5 := &clusterv1beta1.PlacementDecision{}
+	g.Expect(c.Get(context.TODO(),
+		types.NamespacedName{Namespace: test5PlDc.Namespace, Name: test5PlDc.Name},
+		placementDecision5)).NotTo(gomega.HaveOccurred())
+
+	newPlacementDecision5 := placementDecision5.DeepCopy()
+	newPlacementDecision5.Status = *placementDecisionStatus
+
+	g.Expect(c.Status().Update(context.TODO(), newPlacementDecision5)).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(time.Second * 3)
+
+	placementDecisionAfterupdate5 := &clusterv1beta1.PlacementDecision{}
+	g.Expect(c.Get(context.TODO(),
+		types.NamespacedName{Namespace: placementDecision5.Namespace, Name: placementDecision5.Name},
+		placementDecisionAfterupdate5)).NotTo(gomega.HaveOccurred())
+
+	g.Expect(placementDecisionAfterupdate5.Status.Decisions[0].ClusterName).To(gomega.Equal("cluster1"))
+
+	// Create Managed cluster secret with empty api server url
+	c.Create(context.TODO(), managedClusterNamespace1)
+
+	managedClusterSecret5 := managedClusterSecret5.DeepCopy()
+	managedClusterSecret5.StringData["server"] = ""
+
+	g.Expect(c.Create(context.TODO(), managedClusterSecret5.DeepCopy())).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), managedClusterSecret5)
+
+	// Create Managed cluster with empty api server url data
+	mc1 := managedCluster1.DeepCopy()
+
+	g.Expect(c.Create(context.TODO(), mc1)).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), mc1)
+
+	// Create Openshift-gitops5 namespace
+	c.Create(context.TODO(), gitopsServerNamespace5)
+
+	argoServiceInGitOps := argoService.DeepCopy()
+	argoServiceInGitOps.Namespace = gitopsServerNamespace5.Name
+
+	g.Expect(c.Create(context.TODO(), argoServiceInGitOps)).NotTo(gomega.HaveOccurred())
+
+	defer c.Delete(context.TODO(), argoServiceInGitOps)
+
+	// Create GitOpsCluster CR
+	goc := gitOpsCluster.DeepCopy()
+	goc.Namespace = test5Ns.Name
+	goc.Spec.ArgoServer.ArgoNamespace = gitopsServerNamespace5.Name
+	goc.Spec.PlacementRef = &corev1.ObjectReference{
+		Kind:       "Placement",
+		APIVersion: "cluster.open-cluster-management.io/v1beta1",
+		Name:       test5Pl.Name,
+	}
+
+	g.Expect(c.Create(context.TODO(), goc)).NotTo(gomega.HaveOccurred())
+	defer c.Delete(context.TODO(), goc)
+
+	// expect the gitopscluster CR fails to generate the cluster secret as both the managed cluster and the managed cluster secret don't have api server url
+	time.Sleep(3 * time.Second)
+
+	g.Expect(c.Get(context.TODO(), client.ObjectKeyFromObject(goc), goc)).NotTo(gomega.HaveOccurred())
+
+	g.Expect(goc.Status.Phase).To(gomega.Equal("failed"))
+
+	// append the api server url to the managed cluster, expect the managed cluster's secret is created in the Argo namespace
+	mc1.Spec.ManagedClusterClientConfigs = []clusterv1.ClientConfig{{URL: "https://local-cluster-5:6443", CABundle: []byte("abc")}}
+	g.Expect(c.Update(context.TODO(), mc1)).NotTo(gomega.HaveOccurred())
+
+	time.Sleep(3 * time.Second)
+
+	updatedSecret := expectedSecretCreated(c, gitOpsClusterSecret5Key)
+
+	g.Expect(updatedSecret).ToNot(gomega.BeNil())
+	g.Expect(string(updatedSecret.Data["server"])).To(gomega.Equal("https://local-cluster-5:6443"))
 }
 
 func expectedSecretCreated(c client.Client, expectedSecretKey types.NamespacedName) *corev1.Secret {

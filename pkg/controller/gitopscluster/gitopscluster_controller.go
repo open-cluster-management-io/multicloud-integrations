@@ -63,6 +63,14 @@ type ReconcileGitOpsCluster struct {
 	lock       sync.Mutex
 }
 
+// TokenConfig defines a token configuration used in ArgoCD cluster secret
+type TokenConfig struct {
+	BearerToken     string `json:"bearerToken"`
+	TLSClientConfig struct {
+		Insecure bool `json:"insecure"`
+	} `json:"tlsClientConfig"`
+}
+
 // Add creates a new argocd cluster Controller and adds it to the Manager with default RBAC.
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
@@ -470,7 +478,8 @@ func (r *ReconcileGitOpsCluster) GetAllManagedClusterSecretsInArgo() (v1.SecretL
 	return *secretList, nil
 }
 
-// GetAllManagedClusterSecretsInArgo returns list of secrets from all GitOps managed cluster
+// GetAllManagedClusterSecretsInArgo returns list of secrets from all GitOps managed cluster.
+// these secrets are not gnerated by ACM ArgoCD push model, they are created by end users themselves
 func (r *ReconcileGitOpsCluster) GetAllNonAcmManagedClusterSecretsInArgo(argoNs string) (map[string][]*v1.Secret, error) {
 	klog.Info("Getting all non-acm managed cluster secrets from argo namespaces")
 
@@ -960,6 +969,8 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 	// create the new cluster secret in the argocd server namespace
 	var newSecret *v1.Secret
 
+	clusterURL := ""
+
 	if createBlankClusterSecrets {
 		newSecret = &v1.Secret{
 			TypeMeta: metav1.TypeMeta{
@@ -983,6 +994,22 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 			},
 		}
 	} else {
+		if string(managedClusterSecret.Data["server"]) == "" {
+			clusterToken, err := getManagedClusterToken(managedClusterSecret.Data["config"])
+			if err != nil {
+				klog.Error(err)
+
+				return nil, err
+			}
+
+			clusterURL, err = getManagedClusterURL(managedCluster, clusterToken)
+			if err != nil {
+				klog.Error(err)
+
+				return nil, err
+			}
+		}
+
 		labels := managedClusterSecret.GetLabels()
 
 		newSecret = &v1.Secret{
@@ -1004,7 +1031,7 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 			StringData: map[string]string{
 				"config": string(managedClusterSecret.Data["config"]),
 				"name":   string(managedClusterSecret.Data["name"]),
-				"server": string(managedClusterSecret.Data["server"]),
+				"server": clusterURL,
 			},
 		}
 	}
@@ -1176,6 +1203,22 @@ func unionSecretData(newSecret, existingSecret *v1.Secret) *v1.Secret {
 	newSecret.StringData = newData
 
 	return newSecret
+}
+
+func getManagedClusterToken(dataConfig []byte) (string, error) {
+	if dataConfig == nil {
+		return "", fmt.Errorf("empty secrect data config")
+	}
+
+	// Unmarshal the decoded JSON into the Config struct
+	var config TokenConfig
+	err := json.Unmarshal(dataConfig, &config)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+
+	return config.BearerToken, nil
 }
 
 func getManagedClusterURL(managedCluster *spokeclusterv1.ManagedCluster, token string) (string, error) {

@@ -18,11 +18,13 @@ package application
 
 import (
 	"context"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -109,6 +111,32 @@ func (r *ApplicationReconciler) SetupWithManager(mgr ctrl.Manager, maxConcurrent
 		Complete(r)
 }
 
+func (r *ApplicationReconciler) isLocalCluster(clusterName string) bool {
+	managedCluster := &clusterv1.ManagedCluster{}
+	managedClusterKey := types.NamespacedName{
+		Name: clusterName,
+	}
+	err := r.Get(context.TODO(), managedClusterKey, managedCluster)
+
+	if err != nil {
+		klog.Errorf("Failed to find managed cluster: %v, error: %v ", clusterName, err)
+		return false
+	}
+
+	labels := managedCluster.GetLabels()
+
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+
+	if strings.EqualFold(labels["local-cluster"], "true") {
+		klog.Infof("This is local-cluster: %v", clusterName)
+		return true
+	}
+
+	return false
+}
+
 // Reconcile create/update/delete ManifestWork with the Application as its payload
 func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
@@ -122,7 +150,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	managedClusterName := application.GetAnnotations()[AnnotationKeyOCMManagedCluster]
 
-	if managedClusterName == "local-cluster" {
+	if r.isLocalCluster(managedClusterName) {
 		log.Info("skipping Application with the local-cluster as Managed Cluster")
 
 		return ctrl.Result{}, nil
