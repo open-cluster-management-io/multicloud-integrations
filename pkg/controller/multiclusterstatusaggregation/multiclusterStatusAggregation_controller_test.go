@@ -456,17 +456,10 @@ func TestReconcilePullModel(t *testing.T) {
 
 	c = mgr.GetClient()
 
-	Add(mgr, 10, "../../../hack/test") // 10 second interval
-
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Minute)
-	mgrStopped := StartTestManager(ctx, mgr, g)
 
-	defer func() {
-		cancel()
-		mgrStopped.Wait()
-	}()
-
-	// Create appsets
+	// Create appsets before the aggregation controller is started.
+	// Or the hack/test/openshift-gitops_appset-1.yaml will be deleted as its related appset is not created yet
 	g.Expect(c.Create(ctx, sampleAppset1.DeepCopy())).NotTo(HaveOccurred())
 	g.Expect(c.Create(ctx, sampleAppset2.DeepCopy())).NotTo(HaveOccurred())
 	g.Expect(c.Create(ctx, sampleAppset3.DeepCopy())).NotTo(HaveOccurred())
@@ -477,6 +470,15 @@ func TestReconcilePullModel(t *testing.T) {
 	g.Expect(c.Create(ctx, sampleAppsetBgd4.DeepCopy())).NotTo(HaveOccurred())
 	g.Expect(c.Create(ctx, sampleAppsetDummy.DeepCopy())).NotTo(HaveOccurred())
 	g.Expect(c.Create(ctx, longAppsetName.DeepCopy())).NotTo(HaveOccurred())
+
+	Add(mgr, 10, "../../../hack/test") // 10 second interval
+
+	mgrStopped := StartTestManager(ctx, mgr, g)
+
+	defer func() {
+		cancel()
+		mgrStopped.Wait()
+	}()
 
 	// Create appset reports
 	g.Expect(c.Create(ctx, sampleMulticlusterApplicationSetReport1.DeepCopy())).NotTo(HaveOccurred())
