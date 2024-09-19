@@ -1008,6 +1008,8 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 
 				return nil, err
 			}
+		} else {
+			clusterURL = string(managedClusterSecret.Data["server"])
 		}
 
 		labels := managedClusterSecret.GetLabels()
