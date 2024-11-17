@@ -108,11 +108,15 @@ kubectl config use-context kind-cluster1
 kubectl apply -f e2e/managed/
 kubectl config use-context kind-hub
 kubectl apply -f e2e/hub/
+kubectl apply -f e2e/hub_app/
 sleep 30s
 if kubectl -n argocd get application cluster1-guestbook-app; then
     echo "Propagation: hub application cluster1-guestbook-app created"
 else
     echo "Propagation FAILED: hub application cluster1-guestbook-app not created"
+    kubectl -n argocd get applicationset guestbook-app-set -o yaml
+    kubectl -n argocd get placementdecision guestbook-app-placement-decision-1 -o yaml
+    kubectl -n argocd logs $(kubectl -n argocd get pods -l app.kubernetes.io/name=argocd-applicationset-controller -o jsonpath="{.items[0].metadata.name}")
     exit 1
 fi
 if kubectl -n cluster1 get manifestwork | grep cluster1-guestbook-app; then
@@ -124,7 +128,7 @@ fi
 if kubectl -n cluster1 get manifestwork -o yaml | grep ed58e4a1479ef2d7fb1a60bc2b7300100f262779; then
     echo "Propagation: manifestwork contains appSet hash"
 else
-    echo "Propagation FAILED: manifestwork does not appSet hash"
+    echo "Propagation FAILED: manifestwork does not contain appSet hash"
     exit 1
 fi
 kubectl config use-context kind-cluster1

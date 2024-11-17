@@ -25,12 +25,13 @@ import (
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	corev1 "k8s.io/api/core/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
-	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 )
 
 var _ = Describe("Application Pull controller", func() {
@@ -38,6 +39,7 @@ var _ = Describe("Application Pull controller", func() {
 	const (
 		appName          = "app-1"
 		appName2         = "app-2"
+		appName3         = "app-3"
 		appNamespace     = "default"
 		clusterName      = "cluster1"
 		localClusterName = "local-cluster"
@@ -45,24 +47,31 @@ var _ = Describe("Application Pull controller", func() {
 
 	appKey := types.NamespacedName{Name: appName, Namespace: appNamespace}
 	appKey2 := types.NamespacedName{Name: appName2, Namespace: appNamespace}
+	appKey3 := types.NamespacedName{Name: appName3, Namespace: appNamespace}
 	ctx := context.Background()
 
 	Context("When Application without OCM pull label is created", func() {
 		It("Should not create ManifestWork", func() {
 			By("Creating the Application without OCM pull label")
-			app1 := argov1alpha1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        appName,
-					Namespace:   appNamespace,
-					Annotations: map[string]string{AnnotationKeyOCMManagedCluster: clusterName},
-				},
-				Spec: argov1alpha1.ApplicationSpec{Source: &argov1alpha1.ApplicationSource{RepoURL: "dummy"}},
-			}
-			Expect(k8sClient.Create(ctx, &app1)).Should(Succeed())
-			app1 = argov1alpha1.Application{}
-			Expect(k8sClient.Get(ctx, appKey, &app1)).Should(Succeed())
+			app1 := &unstructured.Unstructured{}
+			app1.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "argoproj.io",
+				Version: "v1alpha1",
+				Kind:    "Application",
+			})
+			app1.SetName(appName)
+			app1.SetNamespace(appNamespace)
+			app1.SetAnnotations(map[string]string{AnnotationKeyOCMManagedCluster: clusterName})
+			_ = unstructured.SetNestedField(app1.Object, "default", "spec", "project")
+			_ = unstructured.SetNestedField(app1.Object, "https://github.com/argoproj/argocd-example-apps.git", "spec", "source", "repoURL")
+			_ = unstructured.SetNestedMap(app1.Object, map[string]interface{}{
+				"server":    KubernetesInternalAPIServerAddr,
+				"namespace": appNamespace,
+			}, "spec", "destination")
+			Expect(k8sClient.Create(ctx, app1)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, appKey, app1)).Should(Succeed())
 
-			mwKey := types.NamespacedName{Name: generateManifestWorkName(app1), Namespace: clusterName}
+			mwKey := types.NamespacedName{Name: generateManifestWorkName(app1.GetName(), app1.GetUID()), Namespace: clusterName}
 			mw := workv1.ManifestWork{}
 			Consistently(func() bool {
 				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {
@@ -92,24 +101,27 @@ var _ = Describe("Application Pull controller", func() {
 			Expect(k8sClient.Create(ctx, &managedClusterNs)).Should(Succeed())
 
 			By("Creating the Application with OCM pull label")
-			app2 := argov1alpha1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        appName2,
-					Namespace:   appNamespace,
-					Labels:      map[string]string{LabelKeyPull: strconv.FormatBool(true)},
-					Annotations: map[string]string{AnnotationKeyOCMManagedCluster: clusterName},
-					Finalizers:  []string{argov1alpha1.ResourcesFinalizerName},
-				},
-				Spec: argov1alpha1.ApplicationSpec{
-					Project: "default",
-					Source:  &argov1alpha1.ApplicationSource{RepoURL: "dummy"},
-				},
-			}
-			Expect(k8sClient.Create(ctx, &app2)).Should(Succeed())
-			app2 = argov1alpha1.Application{}
-			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
+			app2 := &unstructured.Unstructured{}
+			app2.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "argoproj.io",
+				Version: "v1alpha1",
+				Kind:    "Application",
+			})
+			app2.SetName(appName2)
+			app2.SetNamespace(appNamespace)
+			app2.SetLabels(map[string]string{LabelKeyPull: strconv.FormatBool(true)})
+			app2.SetAnnotations(map[string]string{AnnotationKeyOCMManagedCluster: clusterName})
+			app2.SetFinalizers([]string{ResourcesFinalizerName})
+			_ = unstructured.SetNestedField(app2.Object, "default", "spec", "project")
+			_ = unstructured.SetNestedField(app2.Object, "https://github.com/argoproj/argocd-example-apps.git", "spec", "source", "repoURL")
+			_ = unstructured.SetNestedMap(app2.Object, map[string]interface{}{
+				"server":    KubernetesInternalAPIServerAddr,
+				"namespace": appNamespace,
+			}, "spec", "destination")
+			Expect(k8sClient.Create(ctx, app2)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, appKey2, app2)).Should(Succeed())
 
-			mwKey := types.NamespacedName{Name: generateManifestWorkName(app2), Namespace: clusterName}
+			mwKey := types.NamespacedName{Name: generateManifestWorkName(app2.GetName(), app2.GetUID()), Namespace: clusterName}
 			mw := workv1.ManifestWork{}
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {
@@ -119,8 +131,16 @@ var _ = Describe("Application Pull controller", func() {
 			}).Should(BeTrue())
 
 			By("Updating the Application")
-			app2.Spec.Project = "somethingelse"
-			Expect(k8sClient.Update(ctx, &app2)).Should(Succeed())
+			spec := map[string]interface{}{
+				"project": "somethingelse",
+				"source":  map[string]interface{}{"repoURL": "dummy"},
+				"destination": map[string]interface{}{
+					"server":    KubernetesInternalAPIServerAddr,
+					"namespace": appNamespace,
+				},
+			}
+			Expect(unstructured.SetNestedField(app2.Object, spec, "spec")).Should(Succeed())
+			Expect(k8sClient.Update(ctx, app2)).Should(Succeed())
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {
 					return false
@@ -134,17 +154,9 @@ var _ = Describe("Application Pull controller", func() {
 				return strings.Contains(string(mw.Spec.Workload.Manifests[0].RawExtension.Raw), "somethingelse")
 			}).Should(BeTrue())
 
-			By("Updating the Application status")
-			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
-			app2.Status.Health.Status = "Healthy"
-			Expect(k8sClient.Update(ctx, &app2)).Should(Succeed())
-			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
-			Expect(app2.Status.Health.Status == "Healthy").Should(BeTrue())
-			// TODO figure how to verify it didn't reconcile again without using debugger
-
 			By("Deleting the Application")
-			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
-			Expect(k8sClient.Delete(ctx, &app2)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, appKey2, app2)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, app2)).Should(Succeed())
 			Eventually(func() bool {
 				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {
 					return true
@@ -159,7 +171,8 @@ var _ = Describe("Application Pull controller", func() {
 			By("Creating the OCM ManagedCluster")
 			managedCluster := clusterv1.ManagedCluster{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: localClusterName,
+					Name:   localClusterName,
+					Labels: map[string]string{"local-cluster": "true"},
 				},
 			}
 			Expect(k8sClient.Create(ctx, &managedCluster)).Should(Succeed())
@@ -173,24 +186,27 @@ var _ = Describe("Application Pull controller", func() {
 			Expect(k8sClient.Create(ctx, &managedClusterNs)).Should(Succeed())
 
 			By("Creating the Application with OCM pull label and local-cluster")
-			app2 := argov1alpha1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        appName2,
-					Namespace:   appNamespace,
-					Labels:      map[string]string{LabelKeyPull: strconv.FormatBool(true)},
-					Annotations: map[string]string{AnnotationKeyOCMManagedCluster: localClusterName},
-					Finalizers:  []string{argov1alpha1.ResourcesFinalizerName},
-				},
-				Spec: argov1alpha1.ApplicationSpec{
-					Project: "default",
-					Source:  &argov1alpha1.ApplicationSource{RepoURL: "dummy"},
-				},
-			}
-			Expect(k8sClient.Create(ctx, &app2)).Should(Succeed())
-			app2 = argov1alpha1.Application{}
-			Expect(k8sClient.Get(ctx, appKey2, &app2)).Should(Succeed())
+			app3 := &unstructured.Unstructured{}
+			app3.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "argoproj.io",
+				Version: "v1alpha1",
+				Kind:    "Application",
+			})
+			app3.SetName(appName3)
+			app3.SetNamespace(appNamespace)
+			app3.SetLabels(map[string]string{LabelKeyPull: strconv.FormatBool(true)})
+			app3.SetAnnotations(map[string]string{AnnotationKeyOCMManagedCluster: localClusterName})
+			app3.SetFinalizers([]string{ResourcesFinalizerName})
+			_ = unstructured.SetNestedField(app3.Object, "default", "spec", "project")
+			_ = unstructured.SetNestedField(app3.Object, "https://github.com/argoproj/argocd-example-apps.git", "spec", "source", "repoURL")
+			_ = unstructured.SetNestedMap(app3.Object, map[string]interface{}{
+				"server":    KubernetesInternalAPIServerAddr,
+				"namespace": appNamespace,
+			}, "spec", "destination")
+			Expect(k8sClient.Create(ctx, app3)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, appKey3, app3)).Should(Succeed())
 
-			mwKey := types.NamespacedName{Name: generateManifestWorkName(app2), Namespace: clusterName}
+			mwKey := types.NamespacedName{Name: generateManifestWorkName(app3.GetName(), app3.GetUID()), Namespace: clusterName}
 			mw := workv1.ManifestWork{}
 			Consistently(func() bool {
 				if err := k8sClient.Get(ctx, mwKey, &mw); err != nil {

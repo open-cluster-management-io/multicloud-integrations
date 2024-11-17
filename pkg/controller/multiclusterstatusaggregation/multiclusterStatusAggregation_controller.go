@@ -29,14 +29,15 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	workv1 "open-cluster-management.io/api/work/v1"
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
-	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	propagation "open-cluster-management.io/multicloud-integrations/propagation-controller/application"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -503,12 +504,12 @@ func (r *ReconcilePullModelAggregation) cleanupReports() error {
 			appsetNsN := types.NamespacedName{Namespace: names[0], Name: names[1]}
 			klog.V(1).Info("Check if corresponding appset exists for YAML, ", appsetNsN)
 
-			existingAppset := &argov1alpha1.ApplicationSet{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "ApplicationSet",
-					APIVersion: "argoproj.io/v1alpha1",
-				},
-			}
+			existingAppset := &unstructured.Unstructured{}
+			existingAppset.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "argoproj.io",
+				Version: "v1alpha1",
+				Kind:    "ApplicationSet",
+			})
 
 			if err := r.Get(context.TODO(), appsetNsN, existingAppset); err != nil {
 				if errors.IsNotFound(err) {
@@ -551,12 +552,12 @@ func (r *ReconcilePullModelAggregation) cleanupOrphanReports() error {
 	for _, appsetReport := range appsetReportList.Items {
 		klog.V(1).Info("Check if corresponding appset exists for Report, ", appsetReport.Namespace, appsetReport.Name)
 
-		existingAppset := &argov1alpha1.ApplicationSet{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ApplicationSet",
-				APIVersion: "argoproj.io/v1alpha1",
-			},
-		}
+		existingAppset := &unstructured.Unstructured{}
+		existingAppset.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "argoproj.io",
+			Version: "v1alpha1",
+			Kind:    "ApplicationSet",
+		})
 
 		if err := r.Get(context.TODO(), types.NamespacedName{Namespace: appsetReport.Namespace,
 			Name: appsetReport.Name}, existingAppset); err != nil {

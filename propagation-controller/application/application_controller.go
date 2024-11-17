@@ -18,11 +18,13 @@ package application
 
 import (
 	"context"
+	"reflect"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,7 +36,6 @@ import (
 
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
-	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 )
 
 const (
@@ -56,6 +57,8 @@ const (
 	LabelKeyAppSetHash = "apps.open-cluster-management.io/application-set-hash"
 	// Application label that enables the pull controller to wrap the Application in ManifestWork payload
 	LabelKeyPull = "apps.open-cluster-management.io/pull-to-ocm-managed-cluster"
+	// ResourcesFinalizerName is the finalizer value which we inject to finalize deletion of an application
+	ResourcesFinalizerName string = "resources-finalizer.argocd.argoproj.io"
 )
 
 // ApplicationReconciler reconciles a Application object
@@ -71,42 +74,38 @@ type ApplicationReconciler struct {
 // ApplicationPredicateFunctions defines which Application this controller should wrap inside ManifestWork's payload
 var ApplicationPredicateFunctions = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldApp := e.ObjectOld.(*argov1alpha1.Application)
-		newApp := e.ObjectNew.(*argov1alpha1.Application)
-
-		isChanged := true // excluding status
-		if oldApp != nil && newApp != nil {
-			oldAppCopy := oldApp.DeepCopy()
-			newAppCopy := newApp.DeepCopy()
-			oldAppCopy.Status = argov1alpha1.ApplicationStatus{}
-			newAppCopy.Status = argov1alpha1.ApplicationStatus{}
-			oldAppCopy.Generation = 0
-			newAppCopy.Generation = 0
-			oldAppCopy.ResourceVersion = ""
-			newAppCopy.ResourceVersion = ""
-			oldAppCopy.ManagedFields = nil
-			newAppCopy.ManagedFields = nil
-			isChanged = !equality.Semantic.DeepEqual(oldAppCopy, newAppCopy)
-		}
-
-		return containsValidPullLabel(*newApp) && containsValidPullAnnotation(*newApp) && isChanged
+		newApp := e.ObjectNew.(*unstructured.Unstructured)
+		oldApp := e.ObjectOld.(*unstructured.Unstructured)
+		oldAppCopy := oldApp.DeepCopy()
+		newAppCopy := newApp.DeepCopy()
+		unstructured.RemoveNestedField(oldAppCopy.Object, "status")
+		unstructured.RemoveNestedField(newAppCopy.Object, "status")
+		isChanged := !reflect.DeepEqual(oldAppCopy.Object, newAppCopy.Object)
+		return containsValidPullLabel(newApp.GetLabels()) && containsValidPullAnnotation(newApp.GetAnnotations()) && isChanged
 	},
 	CreateFunc: func(e event.CreateEvent) bool {
-		app := e.Object.(*argov1alpha1.Application)
-		return containsValidPullLabel(*app) && containsValidPullAnnotation(*app)
+		app := e.Object.(*unstructured.Unstructured)
+		return containsValidPullLabel(app.GetLabels()) && containsValidPullAnnotation(app.GetAnnotations())
 	},
 
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		app := e.Object.(*argov1alpha1.Application)
-		return containsValidPullLabel(*app) && containsValidPullAnnotation(*app)
+		app := e.Object.(*unstructured.Unstructured)
+		return containsValidPullLabel(app.GetLabels()) && containsValidPullAnnotation(app.GetAnnotations())
 	},
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ApplicationReconciler) SetupWithManager(mgr ctrl.Manager, maxConcurrentReconciles int) error {
+	applicationGVK := &unstructured.Unstructured{}
+	applicationGVK.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "argoproj.io",
+		Version: "v1alpha1",
+		Kind:    "Application",
+	})
+
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}).
-		For(&argov1alpha1.Application{}).
+		For(applicationGVK).
 		WithEventFilter(ApplicationPredicateFunctions).
 		Complete(r)
 }
@@ -142,8 +141,14 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	log := log.FromContext(ctx)
 	log.Info("reconciling Application...")
 
-	var application argov1alpha1.Application
-	if err := r.Get(ctx, req.NamespacedName, &application); err != nil {
+	application := &unstructured.Unstructured{}
+	application.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "argoproj.io",
+		Version: "v1alpha1",
+		Kind:    "Application",
+	})
+
+	if err := r.Get(ctx, req.NamespacedName, application); err != nil {
 		log.Error(err, "unable to fetch Application")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -156,15 +161,15 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, nil
 	}
 
-	mwName := generateManifestWorkName(application)
+	mwName := generateManifestWorkName(application.GetName(), application.GetUID())
 
 	// the Application is being deleted, find the ManifestWork and delete that as well
-	if application.ObjectMeta.DeletionTimestamp != nil {
+	if application.GetDeletionTimestamp() != nil {
 		// remove finalizer from Application but do not 'commit' yet
-		if len(application.Finalizers) != 0 {
+		if len(application.GetFinalizers()) != 0 {
 			f := application.GetFinalizers()
 			for i := 0; i < len(f); i++ {
-				if f[i] == argov1alpha1.ResourcesFinalizerName {
+				if f[i] == ResourcesFinalizerName {
 					f = append(f[:i], f[i+1:]...)
 					i--
 				}
@@ -178,7 +183,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 		if errors.IsNotFound(err) {
 			// already deleted ManifestWork, commit the Application finalizer removal
-			if err = r.Update(ctx, &application); err != nil {
+			if err = r.Update(ctx, application); err != nil {
 				log.Error(err, "unable to update Application")
 				return ctrl.Result{}, err
 			}
@@ -193,7 +198,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 
 		// deleted ManifestWork, commit the Application finalizer removal
-		if err := r.Update(ctx, &application); err != nil {
+		if err := r.Update(ctx, application); err != nil {
 			log.Error(err, "unable to update Application")
 			return ctrl.Result{}, err
 		}

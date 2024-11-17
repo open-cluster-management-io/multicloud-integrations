@@ -10,7 +10,7 @@ spec:
         labelSelector:
           matchLabels:
             cluster.open-cluster-management.io/placement: guestbook-app-placement
-        requeueAfterSeconds: 30
+        requeueAfterSeconds: 10
   template:
     metadata:
       name: '{{name}}-guestbook-app'

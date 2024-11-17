@@ -30,7 +30,6 @@ import (
 	v1 "open-cluster-management.io/api/work/v1"
 	appsubapi "open-cluster-management.io/multicloud-integrations/pkg/apis"
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
-	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -51,7 +50,6 @@ func TestMain(m *testing.M) {
 	appsetreportV1alpha1.AddToScheme(scheme.Scheme)
 	v1.AddToScheme(scheme.Scheme)
 	appsubapi.AddToScheme(scheme.Scheme)
-	argov1alpha1.AddToScheme(scheme.Scheme)
 
 	var err error
 	if cfg, err = t.Start(); err != nil {

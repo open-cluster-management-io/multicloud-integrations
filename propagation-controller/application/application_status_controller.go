@@ -19,18 +19,19 @@ package application
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
-	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 )
 
 // ApplicationStatusReconciler reconciles a Application object
@@ -73,12 +74,18 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		appNsn := strings.Split(cc.App, "/")
 
 		if len(appNsn) > 1 {
-			appNsn := strings.Split(cc.App, "/")
 			appNamespace := appNsn[0]
 			appName := appNsn[1]
 
-			application := argov1alpha1.Application{}
-			if err := r.Get(ctx, types.NamespacedName{Namespace: appNamespace, Name: appName}, &application); err != nil {
+			application := &unstructured.Unstructured{}
+			application.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "argoproj.io",
+				Version: "v1alpha1",
+				Kind:    "Application",
+			})
+
+			err := r.Get(ctx, types.NamespacedName{Namespace: appNamespace, Name: appName}, application)
+			if err != nil {
 				if errors.IsNotFound(err) {
 					log.Info("not found Application " + err.Error())
 					continue
@@ -89,34 +96,87 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				return ctrl.Result{}, err
 			}
 
-			oldStatus := &application.Status
-			newStatus := oldStatus.DeepCopy()
+			oldStatus, _, _ := unstructured.NestedMap(application.Object, "status")
+			if oldStatus == nil {
+				oldStatus = make(map[string]interface{})
+			}
+
+			newStatus := make(map[string]interface{})
+			for k, v := range oldStatus {
+				newStatus[k] = v
+			}
+
+			_, ok, _ := unstructured.NestedMap(newStatus, "sync")
+			if !ok {
+				err := unstructured.SetNestedMap(newStatus, map[string]interface{}{}, "sync")
+				if err != nil {
+					log.Error(err, "unable to set sync")
+					return ctrl.Result{}, err
+				}
+			}
 
 			if cc.SyncStatus != "" {
-				newStatus.Sync.Status = argov1alpha1.SyncStatusCode(cc.SyncStatus)
+				err := unstructured.SetNestedField(newStatus, cc.SyncStatus, "sync", "status")
+				if err != nil {
+					log.Error(err, "unable to set sync status")
+					return ctrl.Result{}, err
+				}
+			}
+
+			_, ok, _ = unstructured.NestedMap(newStatus, "health")
+			if !ok {
+				err := unstructured.SetNestedMap(newStatus, map[string]interface{}{}, "health")
+				if err != nil {
+					log.Error(err, "unable to set health")
+					return ctrl.Result{}, err
+				}
 			}
 
 			if cc.HealthStatus != "" {
-				newStatus.Health.Status = cc.HealthStatus
+				err := unstructured.SetNestedField(newStatus, cc.HealthStatus, "health", "status")
+				if err != nil {
+					log.Error(err, "unable to set health status")
+					return ctrl.Result{}, err
+				}
 			}
 
-			appSetName := getAppSetOwnerName(application)
-			if appSetName != "" && len(newStatus.Conditions) == 0 {
-				newStatus.Conditions = []argov1alpha1.ApplicationCondition{{
-					Type: "AdditionalStatusReport",
-					Message: fmt.Sprintf("kubectl get multiclusterapplicationsetreports -n %s %s"+
-						"\nAdditional details available in ManagedCluster %s"+
-						"\nkubectl get applications -n %s %s",
-						appNamespace, appSetName,
-						cc.Cluster,
-						appNamespace, appName),
-				}}
+			appSetName := getAppSetOwnerName(application.GetOwnerReferences())
+			if appSetName != "" {
+				conditions, found, _ := unstructured.NestedSlice(newStatus, "conditions")
+				if !found {
+					conditions = []interface{}{}
+				}
+
+				if len(conditions) == 0 {
+					newCondition := map[string]interface{}{
+						"type": "AdditionalStatusReport",
+						"message": fmt.Sprintf(
+							"kubectl get multiclusterapplicationsetreports -n %s %s"+
+								"\nAdditional details available in ManagedCluster %s"+
+								"\nkubectl get applications -n %s %s",
+							appNamespace, appSetName,
+							cc.Cluster,
+							appNamespace, appName,
+						),
+					}
+					conditions = append(conditions, newCondition)
+
+					err := unstructured.SetNestedSlice(newStatus, conditions, "conditions")
+					if err != nil {
+						log.Error(err, "unable to set conditions")
+						return ctrl.Result{}, err
+					}
+				}
 			}
 
-			if !equality.Semantic.DeepEqual(oldStatus, newStatus) {
-				application.Status = *newStatus
+			if !reflect.DeepEqual(oldStatus, newStatus) {
+				err := unstructured.SetNestedField(application.Object, newStatus, "status")
+				if err != nil {
+					log.Error(err, "unable to set application status")
+					return ctrl.Result{}, err
+				}
 
-				err := r.Client.Update(ctx, &application)
+				err = r.Client.Update(ctx, application)
 				if err != nil {
 					log.Error(err, "unable to update Application")
 					return ctrl.Result{}, err
