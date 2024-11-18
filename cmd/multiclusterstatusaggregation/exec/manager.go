@@ -21,7 +21,6 @@ import (
 	manifestWorkV1 "open-cluster-management.io/api/work/v1"
 	appsubapi "open-cluster-management.io/multicloud-integrations/pkg/apis"
 	multiclusterappsetreport "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
-	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	"open-cluster-management.io/multicloud-integrations/pkg/controller"
 	appsubutils "open-cluster-management.io/multicloud-integrations/pkg/utils"
 
@@ -112,12 +111,6 @@ func RunManager() {
 
 	// Setup Multiclusterappsetreport Scheme for manager
 	if err := multiclusterappsetreport.AddToScheme(mgr.GetScheme()); err != nil {
-		klog.Error(err, "")
-		os.Exit(1)
-	}
-
-	// Setup ApplicationSet Scheme for manager
-	if err := argov1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Error(err, "")
 		os.Exit(1)
 	}

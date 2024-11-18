@@ -24,10 +24,11 @@ import (
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
-	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 )
 
 var _ = Describe("Application Status controller", func() {
@@ -45,25 +46,36 @@ var _ = Describe("Application Status controller", func() {
 	Context("When MulticlusterApplicationSetReport is created/updated", func() {
 		It("Should update Application status", func() {
 			By("Creating the Application")
-			app1 := argov1alpha1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      appName,
-					Namespace: appNamespace,
+			app1 := &unstructured.Unstructured{}
+			app1.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "argoproj.io",
+				Version: "v1alpha1",
+				Kind:    "Application",
+			})
+			app1.SetName(appName)
+			app1.SetNamespace(appNamespace)
+			app1.Object["spec"] = map[string]interface{}{
+				"project": "default",
+				"source": map[string]interface{}{
+					"repoURL": "https://github.com/argoproj/argocd-example-apps.git",
 				},
-				Spec: argov1alpha1.ApplicationSpec{Source: &argov1alpha1.ApplicationSource{RepoURL: "dummy"}},
+				"destination": map[string]interface{}{
+					"server":    KubernetesInternalAPIServerAddr,
+					"namespace": "default",
+				},
 			}
-			Expect(k8sClient.Create(ctx, &app1)).Should(Succeed())
-			Expect(k8sClient.Get(ctx, appKey, &app1)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, app1)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, appKey, app1)).Should(Succeed())
 
 			By("Creating the MulticlusterApplicationSetReport")
-			report1 := appsetreportV1alpha1.MulticlusterApplicationSetReport{
+			report1 := &appsetreportV1alpha1.MulticlusterApplicationSetReport{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      reportName,
 					Namespace: appNamespace,
 				},
 			}
-			Expect(k8sClient.Create(ctx, &report1)).Should(Succeed())
-			Expect(k8sClient.Get(ctx, reportKey, &report1)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, report1)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, reportKey, report1)).Should(Succeed())
 
 			By("Updating the MulticlusterApplicationSetReport statuses")
 			report1.Statuses = appsetreportV1alpha1.AppConditions{
@@ -76,13 +88,18 @@ var _ = Describe("Application Status controller", func() {
 					},
 				},
 			}
-			Expect(k8sClient.Update(ctx, &report1)).Should(Succeed())
+			Expect(k8sClient.Update(ctx, report1)).Should(Succeed())
 			time.Sleep(3 * time.Second)
+
 			Eventually(func() bool {
-				if err := k8sClient.Get(ctx, appKey, &app1); err != nil {
+				if err := k8sClient.Get(ctx, appKey, app1); err != nil {
 					return false
 				}
-				return app1.Status.Health.Status == "Healthy" && app1.Status.Sync.Status == "Synced"
+
+				syncStatus, _, _ := unstructured.NestedString(app1.Object, "status", "sync", "status")
+				healthStatus, _, _ := unstructured.NestedString(app1.Object, "status", "health", "status")
+
+				return syncStatus == "Synced" && healthStatus == "Healthy"
 			}).Should(BeTrue())
 		})
 	})

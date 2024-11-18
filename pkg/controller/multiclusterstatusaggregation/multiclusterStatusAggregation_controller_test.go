@@ -22,10 +22,10 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	v1 "open-cluster-management.io/api/work/v1"
 	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
-	argov1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/argocd/v1alpha1"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -180,224 +180,271 @@ var (
 
 	// Appsets
 
-	longAppsetName = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "long-resource-name-truncate-the-name-over-46-chars",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+	longAppsetName = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "long-resource-name-truncate-the-name-over-46-chars",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
 
-	sampleAppset1 = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "appset-1",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+	sampleAppset1 = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "appset-1",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
 
-	sampleAppset2 = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "appset-2",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+	sampleAppset2 = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "appset-2",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
-	sampleAppset3 = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "appset-3",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+
+	sampleAppset3 = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "appset-3",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
-	sampleAppset4 = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "appset-4",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+
+	sampleAppset4 = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "appset-4",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
-	sampleAppsetBgd1 = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "bgd-app",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+
+	sampleAppsetBgd1 = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "bgd-app",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
-	sampleAppsetBgd2 = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "bgd-app-2",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+
+	sampleAppsetBgd2 = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "bgd-app-2",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
-	sampleAppsetBgd3 = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "bgd-app-3",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+
+	sampleAppsetBgd3 = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "bgd-app-3",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
-	sampleAppsetBgd4 = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "bgd-app-4",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+
+	sampleAppsetBgd4 = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "bgd-app-4",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
 	}
-	sampleAppsetDummy = &argov1alpha1.ApplicationSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ApplicationSet",
-			APIVersion: "argoproj.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "dummy-app",
-			Namespace: "openshift-gitops",
-		},
-		Spec: argov1alpha1.ApplicationSetSpec{
-			Generators: []argov1alpha1.ApplicationSetGenerator{},
-			Template: argov1alpha1.ApplicationSetTemplate{
-				Spec: argov1alpha1.ApplicationSpec{
-					Source: &argov1alpha1.ApplicationSource{
-						RepoURL: "",
+
+	sampleAppsetDummy = &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "ApplicationSet",
+			"metadata": map[string]interface{}{
+				"name":      "dummy-app",
+				"namespace": "openshift-gitops",
+			},
+			"spec": map[string]interface{}{
+				"generators": []interface{}{},
+				"template": map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      "{{name}}",
+						"namespace": "{{namespace}}",
 					},
-					Destination: argov1alpha1.ApplicationDestination{},
-					Project:     "",
+					"spec": map[string]interface{}{
+						"source": map[string]interface{}{
+							"repoURL": "",
+						},
+						"destination": map[string]interface{}{},
+						"project":     "",
+					},
 				},
 			},
 		},
