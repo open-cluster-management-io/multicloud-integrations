@@ -17,9 +17,10 @@ limitations under the License.
 package application
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -102,40 +103,29 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 
 			newStatus := make(map[string]interface{})
-			for k, v := range oldStatus {
-				newStatus[k] = v
+
+			oldJSON, err := json.Marshal(oldStatus)
+			if err != nil {
+				log.Error(err, "unable to marshal oldStatus")
+				return ctrl.Result{}, err
 			}
 
-			_, ok, _ := unstructured.NestedMap(newStatus, "sync")
-			if !ok {
-				err := unstructured.SetNestedMap(newStatus, map[string]interface{}{}, "sync")
-				if err != nil {
+			err = json.Unmarshal(oldJSON, &newStatus)
+			if err != nil {
+				log.Error(err, "unable to unmarshal oldStatus into newStatus")
+				return ctrl.Result{}, err
+			}
+
+			if cc.SyncStatus != "" {
+				if err := unstructured.SetNestedField(newStatus, cc.SyncStatus, "sync", "status"); err != nil {
 					log.Error(err, "unable to set sync")
 					return ctrl.Result{}, err
 				}
 			}
 
-			if cc.SyncStatus != "" {
-				err := unstructured.SetNestedField(newStatus, cc.SyncStatus, "sync", "status")
-				if err != nil {
-					log.Error(err, "unable to set sync status")
-					return ctrl.Result{}, err
-				}
-			}
-
-			_, ok, _ = unstructured.NestedMap(newStatus, "health")
-			if !ok {
-				err := unstructured.SetNestedMap(newStatus, map[string]interface{}{}, "health")
-				if err != nil {
-					log.Error(err, "unable to set health")
-					return ctrl.Result{}, err
-				}
-			}
-
 			if cc.HealthStatus != "" {
-				err := unstructured.SetNestedField(newStatus, cc.HealthStatus, "health", "status")
-				if err != nil {
-					log.Error(err, "unable to set health status")
+				if err := unstructured.SetNestedField(newStatus, cc.HealthStatus, "health", "status"); err != nil {
+					log.Error(err, "unable to set health")
 					return ctrl.Result{}, err
 				}
 			}
@@ -169,7 +159,13 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 			}
 
-			if !reflect.DeepEqual(oldStatus, newStatus) {
+			newJSON, err := json.Marshal(newStatus)
+			if err != nil {
+				log.Error(err, "unable to marshal newStatus")
+				return ctrl.Result{}, err
+			}
+
+			if !bytes.Equal(oldJSON, newJSON) {
 				err := unstructured.SetNestedField(application.Object, newStatus, "status")
 				if err != nil {
 					log.Error(err, "unable to set application status")

@@ -11,11 +11,21 @@ spec:
           matchLabels:
             cluster.open-cluster-management.io/placement: guestbook-app-placement
         requeueAfterSeconds: 10
+  strategy:
+    type: RollingSync
+    rollingSync:
+      steps:
+        - matchExpressions:
+            - key: envLabel
+              operator: In
+              values:
+                - env-dev
   template:
     metadata:
       name: '{{name}}-guestbook-app'
       labels:
         apps.open-cluster-management.io/pull-to-ocm-managed-cluster: 'true'
+        envLabel: 'env-dev'
       annotations:
         argocd.argoproj.io/skip-reconcile: 'true'
         apps.open-cluster-management.io/ocm-managed-cluster: '{{name}}'
@@ -30,7 +40,5 @@ spec:
         server: https://kubernetes.default.svc
         namespace: guestbook
       syncPolicy:
-        automated:
-          prune: true
         syncOptions:
           - CreateNamespace=true
