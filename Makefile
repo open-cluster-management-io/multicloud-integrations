@@ -62,6 +62,12 @@ local:
 build-images: build
 	@docker build -t ${IMAGE_NAME_AND_VERSION} -f build/Dockerfile .
 
+# build local linux/amd64 images on non-amd64 hosts such as Apple M3
+build-images-non-amd64:
+	docker buildx create --use
+	docker buildx inspect --bootstrap
+	@docker buildx build --platform linux/amd64 -t ${IMAGE_NAME_AND_VERSION} -f build/Dockerfile --load .
+
 .PHONY: lint
 
 lint: lint-all

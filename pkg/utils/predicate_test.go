@@ -84,26 +84,6 @@ var (
 		},
 	}
 
-	oldArgocdService = &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "argocd-server",
-			Labels: map[string]string{
-				"app.kubernetes.io/part-of":   "argocd",
-				"app.kubernetes.io/component": "server",
-			},
-		},
-	}
-
-	newArgocdService = &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "argocd-server",
-			Labels: map[string]string{
-				"app.kubernetes.io/part-of":   "argocd",
-				"app.kubernetes.io/component": "server",
-			},
-		},
-	}
-
 	newGitOpsCluster = &gitopsclusterV1beta1.GitOpsCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "gitops-cluster",
@@ -155,14 +135,14 @@ func TestPredicate(t *testing.T) {
 	// Test ClusterPredicateFunc
 	instance := ClusterPredicateFunc
 
-	updateEvt := event.UpdateEvent{
+	updateEvt := event.TypedUpdateEvent[*spokeClusterV1.ManagedCluster]{
 		ObjectOld: oldCluster,
 		ObjectNew: newCluster,
 	}
 	ret := instance.Update(updateEvt)
 	g.Expect(ret).To(gomega.Equal(true))
 
-	updateEvt = event.UpdateEvent{
+	updateEvt = event.TypedUpdateEvent[*spokeClusterV1.ManagedCluster]{
 		ObjectOld: oldCluster,
 		ObjectNew: oldCluster,
 	}
@@ -170,7 +150,7 @@ func TestPredicate(t *testing.T) {
 	g.Expect(ret).To(gomega.Equal(false))
 
 	newCluster.DeletionTimestamp = &metav1.Time{Time: time.Now()}
-	updateEvt = event.UpdateEvent{
+	updateEvt = event.TypedUpdateEvent[*spokeClusterV1.ManagedCluster]{
 		ObjectOld: oldCluster,
 		ObjectNew: newCluster,
 	}
@@ -181,279 +161,97 @@ func TestPredicate(t *testing.T) {
 	newCluster.Labels = map[string]string{
 		"env": "test",
 	}
-	updateEvt = event.UpdateEvent{
+	updateEvt = event.TypedUpdateEvent[*spokeClusterV1.ManagedCluster]{
 		ObjectOld: oldCluster,
 		ObjectNew: newCluster,
 	}
 	ret = instance.Update(updateEvt)
 	g.Expect(ret).To(gomega.Equal(true))
 
-	// Test AcmClusterSecretPredicateFunc
-	instance = AcmClusterSecretPredicateFunc
-
-	createEvt := event.CreateEvent{
-		Object: newSecret,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	updateEvt = event.UpdateEvent{
-		ObjectOld: oldSecret,
-		ObjectNew: newSecret,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	delEvt := event.DeleteEvent{
-		Object: newSecret,
-	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	createEvt = event.CreateEvent{
-		Object: newSecret,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	updateEvt = event.UpdateEvent{
-		ObjectOld: newSecret,
-		ObjectNew: oldSecret,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	// Test ArgocdClusterSecretPredicateFunc
-	instance = ArgocdClusterSecretPredicateFunc
-
-	createEvt = event.CreateEvent{
-		Object: newSecret,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	updateEvt = event.UpdateEvent{
-		ObjectOld: oldSecret,
-		ObjectNew: newSecret,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	updateEvt = event.UpdateEvent{
-		ObjectOld: newSecret,
-		ObjectNew: oldSecret,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	delEvt = event.DeleteEvent{
-		Object: newSecret,
-	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	// Test ArgocdServerPredicateFunc
-	instance = ArgocdServerPredicateFunc
-
-	createEvt = event.CreateEvent{
-		Object: newArgocdService,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	updateEvt = event.UpdateEvent{
-		ObjectOld: oldArgocdService,
-		ObjectNew: newArgocdService,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	delEvt = event.DeleteEvent{
-		Object: newArgocdService,
-	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
 	// Test GitOpsClusterPredicateFunc
-	instance = GitOpsClusterPredicateFunc
+	instance1 := GitOpsClusterPredicateFunc
 
-	createEvt = event.CreateEvent{
+	createEvt1 := event.TypedCreateEvent[*gitopsclusterV1beta1.GitOpsCluster]{
 		Object: oldGitOpsCluster,
 	}
-	ret = instance.Create(createEvt)
+	ret = instance1.Create(createEvt1)
 	g.Expect(ret).To(gomega.Equal(true))
 
-	updateEvt = event.UpdateEvent{
+	updateEvt1 := event.TypedUpdateEvent[*gitopsclusterV1beta1.GitOpsCluster]{
 		ObjectOld: oldGitOpsCluster,
 		ObjectNew: newGitOpsCluster,
 	}
 
-	ret = instance.Update(updateEvt)
+	ret = instance1.Update(updateEvt1)
 	g.Expect(ret).To(gomega.Equal(true))
 
 	// Test PlacementDecisionPredicateFunc
-	instance = PlacementDecisionPredicateFunc
+	instance2 := PlacementDecisionPredicateFunc
 
-	createEvt = event.CreateEvent{
+	createEvt2 := event.TypedCreateEvent[*clusterv1beta1.PlacementDecision]{
 		Object: oldPlacementDecision,
 	}
-	ret = instance.Create(createEvt)
+	ret = instance2.Create(createEvt2)
 	g.Expect(ret).To(gomega.Equal(true))
 
-	updateEvt = event.UpdateEvent{
+	updateEvt2 := event.TypedUpdateEvent[*clusterv1beta1.PlacementDecision]{
 		ObjectOld: oldPlacementDecision,
 		ObjectNew: newPlacementDecision,
 	}
 
-	ret = instance.Update(updateEvt)
+	ret = instance2.Update(updateEvt2)
 	g.Expect(ret).To(gomega.Equal(true))
 
-	delEvt = event.DeleteEvent{
+	delEvt2 := event.TypedDeleteEvent[*clusterv1beta1.PlacementDecision]{
 		Object: newPlacementDecision,
 	}
-	ret = instance.Delete(delEvt)
+	ret = instance2.Delete(delEvt2)
 	g.Expect(ret).To(gomega.Equal(true))
 
 	// Test ManagedClusterSecretPredicateFunc
-	instance = ManagedClusterSecretPredicateFunc
+	instance3 := ManagedClusterSecretPredicateFunc
 
-	createEvt = event.CreateEvent{
+	createEvt3 := event.TypedCreateEvent[*v1.Secret]{
 		Object: newSecret,
 	}
-	ret = instance.Create(createEvt)
+	ret = instance3.Create(createEvt3)
 	g.Expect(ret).To(gomega.Equal(false))
 
 	newSecret.Labels = map[string]string{
 		"not-label": "argo",
 	}
 
-	createEvt = event.CreateEvent{
+	createEvt3 = event.TypedCreateEvent[*v1.Secret]{
 		Object: newSecret,
 	}
-	ret = instance.Create(createEvt)
+	ret = instance3.Create(createEvt3)
 	g.Expect(ret).To(gomega.Equal(true))
 
-	updateEvt = event.UpdateEvent{
+	updateEvt3 := event.TypedUpdateEvent[*v1.Secret]{
 		ObjectOld: newSecret,
 		ObjectNew: oldSecret,
 	}
 
-	ret = instance.Update(updateEvt)
+	ret = instance3.Update(updateEvt3)
 	g.Expect(ret).To(gomega.Equal(true))
 
-	delEvt = event.DeleteEvent{
+	delEvt3 := event.TypedDeleteEvent[*v1.Secret]{
 		Object: oldSecret,
 	}
-	ret = instance.Delete(delEvt)
+	ret = instance3.Delete(delEvt3)
 	g.Expect(ret).To(gomega.Equal(false))
 
 	oldSecret.Labels = map[string]string{
 		ACMClusterSecretLabel: "argo",
 	}
-	delEvt = event.DeleteEvent{
+	delEvt3 = event.TypedDeleteEvent[*v1.Secret]{
 		Object: oldSecret,
 	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	// Test AcmClusterSecretPredicateFunc
-	instance = AcmClusterSecretPredicateFunc
-
-	newSecret.Labels = nil
-
-	createEvt = event.CreateEvent{
-		Object: newSecret,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	newSecret.Labels = map[string]string{
-		"apps.open-cluster-management.io/secret-type": "non-acm-cluster",
-	}
-
-	createEvt = event.CreateEvent{
-		Object: newSecret,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	newSecret.Labels = nil
-	oldSecret.Labels = nil
-	updateEvt = event.UpdateEvent{
-		ObjectOld: oldSecret,
-		ObjectNew: newSecret,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	delEvt = event.DeleteEvent{
-		Object: newSecret,
-	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	newSecret.Labels = map[string]string{
-		"apps.open-cluster-management.io/secret-type": "non-acm-cluster",
-	}
-
-	delEvt = event.DeleteEvent{
-		Object: newSecret,
-	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	// Test ArgocdClusterSecretPredicateFunc
-	instance = ArgocdClusterSecretPredicateFunc
-
-	newSecret.Labels = nil
-	oldSecret.Labels = nil
-
-	updateEvt = event.UpdateEvent{
-		ObjectOld: newSecret,
-		ObjectNew: oldSecret,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	createEvt = event.CreateEvent{
-		Object: newSecret,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	newSecret.Labels = map[string]string{
-		ArgocdClusterSecretLabel: "non-acm-cluster",
-	}
-
-	createEvt = event.CreateEvent{
-		Object: newSecret,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	delEvt = event.DeleteEvent{
-		Object: newSecret,
-	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	newSecret.Labels = nil
-
-	delEvt = event.DeleteEvent{
-		Object: newSecret,
-	}
-	ret = instance.Delete(delEvt)
+	ret = instance3.Delete(delEvt3)
 	g.Expect(ret).To(gomega.Equal(false))
 
 	// Test ManagedClusterSecretPredicateFunc
-	instance = ManagedClusterSecretPredicateFunc
+	instance4 := ManagedClusterSecretPredicateFunc
 
 	newSecret.Labels = map[string]string{
 		ArgocdClusterSecretLabel: "acm-cluster",
@@ -462,67 +260,17 @@ func TestPredicate(t *testing.T) {
 		ArgocdClusterSecretLabel: "acm-cluster",
 	}
 
-	updateEvt = event.UpdateEvent{
+	updateEvt4 := event.TypedUpdateEvent[*v1.Secret]{
 		ObjectOld: oldSecret,
 		ObjectNew: newSecret,
 	}
 
-	ret = instance.Update(updateEvt)
+	ret = instance4.Update(updateEvt4)
 	g.Expect(ret).To(gomega.Equal(false))
 
-	delEvt = event.DeleteEvent{
+	delEvt4 := event.TypedDeleteEvent[*v1.Secret]{
 		Object: oldSecret,
 	}
-	ret = instance.Delete(delEvt)
+	ret = instance4.Delete(delEvt4)
 	g.Expect(ret).To(gomega.Equal(true))
-
-	// Test ArgocdServerPredicateFunc
-	instance = ArgocdServerPredicateFunc
-
-	oldArgocdService.Labels = nil
-	updateEvt = event.UpdateEvent{
-		ObjectOld: oldArgocdService,
-		ObjectNew: newArgocdService,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(true))
-
-	newArgocdService.Labels = nil
-	updateEvt = event.UpdateEvent{
-		ObjectOld: oldArgocdService,
-		ObjectNew: newArgocdService,
-	}
-
-	ret = instance.Update(updateEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	createEvt = event.CreateEvent{
-		Object: newArgocdService,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	newArgocdService.Labels = map[string]string{
-		"app.kubernetes.io/part-of":   "not-argocd",
-		"app.kubernetes.io/component": "not-server",
-	}
-	createEvt = event.CreateEvent{
-		Object: newArgocdService,
-	}
-	ret = instance.Create(createEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	delEvt = event.DeleteEvent{
-		Object: newArgocdService,
-	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(false))
-
-	newArgocdService.Labels = nil
-	delEvt = event.DeleteEvent{
-		Object: newArgocdService,
-	}
-	ret = instance.Delete(delEvt)
-	g.Expect(ret).To(gomega.Equal(false))
 }
