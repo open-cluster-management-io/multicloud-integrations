@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart to install openshift gitops operator
+name: openshift-gitops-operator
+version: 1.15.0-15

@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: argocd-operator
+  name: argocd-operator-controller-manager
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: argocd-operator
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: argocd-operator
+    spec:
+      containers:
+      - args:
+        - --leader-elect
+        command:
+        - /usr/local/bin/manager
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: ARGOCD_CLUSTER_CONFIG_NAMESPACES
+          value: '*'
+        {{- if .Values.global.proxyConfig.HTTP_PROXY }}
+        - name: HTTP_PROXY
+          value: {{ .Values.global.proxyConfig.HTTP_PROXY }}
+        {{- end }}
+        {{- if .Values.global.proxyConfig.HTTPS_PROXY }}
+        - name: HTTPS_PROXY
+          value: {{ .Values.global.proxyConfig.HTTPS_PROXY }}
+        {{- end }}
+        {{- if .Values.global.proxyConfig.NO_PROXY }}
+        - name: NO_PROXY
+          value: {{ .Values.global.proxyConfig.NO_PROXY }}
+        {{- end }}
+        image: {{ printf "%s@%s" .Values.global.openshift_gitops_operator.image .Values.global.openshift_gitops_operator.tag }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: argocd-operator-controller-manager
+      terminationGracePeriodSeconds: 10

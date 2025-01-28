@@ -1,0 +1,82 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: routes.route.openshift.io
+spec:
+  group: route.openshift.io
+  names:
+    kind: Route
+    listKind: RouteList
+    plural: routes
+    singular: route
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        description: Route specifies a route to be created
+        type: object
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            properties:
+              host:
+                type: string
+              path:
+                type: string
+              port:
+                type: object
+                properties:
+                  targetPort:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+              tls:
+                type: object
+                properties:
+                  termination:
+                    type: string
+                    enum:
+                    - edge
+                    - reencrypt
+                    - passthrough
+                  insecureEdgeTerminationPolicy:
+                    type: string
+                    enum:
+                    - Allow
+                    - Redirect
+                    - None
+              to:
+                type: object
+                properties:
+                  kind:
+                    type: string
+                  name:
+                    type: string
+                  weight:
+                    type: integer
+          status:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+    additionalPrinterColumns:
+    - name: Host
+      type: string
+      description: The route's host
+      jsonPath: .spec.host
+    - name: Accepted
+      type: boolean
+      description: Whether the route is accepted
+      jsonPath: .status.ingress[0].conditions[?(@.type=="Accepted")].status
+    - name: Service
+      type: string
+      description: The route's service
+      jsonPath: .spec.to.name

@@ -1,0 +1,17 @@
+org: open-cluster-management
+
+nameOverride: openshift-gitops-dependency
+fullnameOverride: openshift-gitops-dependency
+
+global: 
+  application_controller: 
+    image: ""
+    tag: ""
+  redis:
+    image: ""
+    tag: ""
+  reconcile_scope: ""
+  proxyConfig:
+    HTTP_PROXY: ""
+    HTTPS_PROXY: ""
+    NO_PROXY: ""

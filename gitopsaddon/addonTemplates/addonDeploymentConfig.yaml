@@ -1,0 +1,22 @@
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: AddOnDeploymentConfig
+metadata:
+  name: gitops-addon-config
+  namespace: ocm
+spec:
+  customizedVariables:
+  - name: GITOPS_OPERATOR_IMAGE
+    value: registry.redhat.io/openshift-gitops-1/gitops-rhel8-operator@sha256:73f13a5587bbfbea5a64bd3507120eb83b6be85088139c6d65a9aa9cd56e186a
+  - name: GITOPS_OPERATOR_NAMESPACE
+    value: openshift-gitops-operator
+  - name: GITOPS_IMAGE
+    value: registry.redhat.io/openshift-gitops-1/argocd-rhel8@sha256:706d5c99715eece77616135da2fbf90863b7aef17fd64ab03bf7dd20877490ec
+  - name: GITOPS_NAMESPACE
+    value: openshift-gitops
+  - name: REDIS_IMAGE
+    value: registry.redhat.io/rhel8/redis-6@sha256:a848cc4edb4405846c673187dd68ce66c328dd1ad42f193f5737288c7971399d
+  - name: RECONCILE_SCOPE
+    value: Single-Namespace
+  - name: ACTION
+    value: Install
+

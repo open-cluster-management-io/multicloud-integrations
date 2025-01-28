@@ -18,6 +18,7 @@ COPY --from=builder /go/src/github.com/stolostron/multicloud-integrations/build/
 COPY --from=builder /go/src/github.com/stolostron/multicloud-integrations/build/_output/bin/gitopssyncresc /usr/local/bin/gitopssyncresc
 COPY --from=builder /go/src/github.com/stolostron/multicloud-integrations/build/_output/bin/multiclusterstatusaggregation /usr/local/bin/multiclusterstatusaggregation
 COPY --from=builder /go/src/github.com/stolostron/multicloud-integrations/build/_output/bin/propagation /usr/local/bin/propagation
+COPY --from=builder /go/src/github.com/stolostron/multicloud-integrations/build/_output/bin/gitopsaddon /usr/local/bin/gitopsaddon
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup

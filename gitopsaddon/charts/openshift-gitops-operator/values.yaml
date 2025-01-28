@@ -1,0 +1,13 @@
+org: open-cluster-management
+
+nameOverride: openshift-gitops-operator
+fullnameOverride: openshift-gitops-operator
+
+global: 
+  openshift_gitops_operator: 
+    image: ""
+    tag: ""
+  proxyConfig:
+    HTTP_PROXY: ""
+    HTTPS_PROXY: ""
+    NO_PROXY: ""
