@@ -50,12 +50,14 @@ build:
 	@common/scripts/gobuild.sh build/_output/bin/gitopssyncresc ./cmd/gitopssyncresc
 	@common/scripts/gobuild.sh build/_output/bin/multiclusterstatusaggregation ./cmd/multiclusterstatusaggregation
 	@common/scripts/gobuild.sh build/_output/bin/propagation ./cmd/propagation
+	@common/scripts/gobuild.sh build/_output/bin/gitopsaddon ./cmd/gitopsaddon
 
 local:
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/gitopscluster ./cmd/gitopscluster
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/gitopssyncresc ./cmd/gitopssyncresc
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/multiclusterstatusaggregation ./cmd/multiclusterstatusaggregation
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/propagation ./cmd/propagation
+	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/gitopsaddon ./cmd/gitopsaddon
 
 .PHONY: build-images
 
@@ -63,10 +65,13 @@ build-images: build
 	@docker build -t ${IMAGE_NAME_AND_VERSION} -f build/Dockerfile .
 
 # build local linux/amd64 images on non-amd64 hosts such as Apple M3
-build-images-non-amd64:
+build-images-non-amd64-docker:
 	docker buildx create --use
 	docker buildx inspect --bootstrap
 	@docker buildx build --platform linux/amd64 -t ${IMAGE_NAME_AND_VERSION} -f build/Dockerfile --load .
+
+build-images-non-amd64-podman:
+	podman build --platform linux/amd64 -t ${IMAGE_NAME_AND_VERSION} -f build/Dockerfile .
 
 .PHONY: lint
 
@@ -98,6 +103,7 @@ endif
 test: ensure-kubebuilder-tools
 	go test -timeout 300s -v ./pkg/... -coverprofile=coverage.out
 	go test -timeout 300s -v ./propagation-controller/... -coverprofile=prop_coverage.out
+	go test -timeout 300s -v ./gitopsaddon/... -coverprofile=prop_coverage.out
 
 .PHONY: manifests
 manifests: controller-gen

@@ -32,7 +32,7 @@ import (
 
 	"path/filepath"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	"k8s.io/klog"
 	"k8s.io/utils/strings/slices"
 
@@ -197,7 +197,7 @@ func (r *GitOpsSyncResource) syncResources() error {
 				appsetNsn := strings.Split(hostingAppsetName.(string), "/")
 				if len(appsetNsn) != 3 {
 					err := fmt.Errorf("_hostingResource is not in the correct format: %v", hostingAppsetName)
-					klog.Infof(err.Error())
+					klog.Info(err.Error())
 
 					return err
 				}
