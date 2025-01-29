@@ -37,7 +37,7 @@ export XDG_CACHE_HOME ?= $(BASE_DIR)/.cache
 
 TEST_TMP :=/tmp
 export KUBEBUILDER_ASSETS ?=$(TEST_TMP)/kubebuilder/bin
-K8S_VERSION ?=1.19.2
+K8S_VERSION ?=1.28.3
 GOHOSTOS ?=$(shell go env GOHOSTOS)
 GOHOSTARCH ?= $(shell go env GOHOSTARCH)
 KB_TOOLS_ARCHIVE_NAME :=kubebuilder-tools-$(K8S_VERSION)-$(GOHOSTOS)-$(GOHOSTARCH).tar.gz
@@ -52,6 +52,7 @@ build:
 	@common/scripts/gobuild.sh build/_output/bin/gitopssyncresc ./cmd/gitopssyncresc
 	@common/scripts/gobuild.sh build/_output/bin/multiclusterstatusaggregation ./cmd/multiclusterstatusaggregation
 	@common/scripts/gobuild.sh build/_output/bin/propagation ./cmd/propagation
+	@common/scripts/gobuild.sh build/_output/bin/gitopsaddon ./cmd/gitopsaddon
 
 .PHONY: lint
 
@@ -82,6 +83,6 @@ endif
 .PHONY: ensure-kubebuilder-tools
 
 test: ensure-kubebuilder-tools
-	go test -timeout 300s -v ./pkg/...
-	go test -timeout 300s -v ./propagation-controller/...
-	go test -timeout 300s -v ./gitopsaddon/...
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test -timeout 300s -v ./pkg/...
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test -timeout 300s -v ./propagation-controller/...
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test -timeout 300s -v ./gitopsaddon/...

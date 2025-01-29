@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog"
 )
 
 var (
@@ -99,6 +100,21 @@ func setupHelmWithEnvTestConfig(cfg *rest.Config) (*genericclioptions.ConfigFlag
 	return configFlags, nil
 }
 
+func GetPodNamespace() string {
+	addonNameSpace := ""
+	nsBytes, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+
+	if err != nil || len(nsBytes) == 0 {
+		klog.Infof("failed to get current pod namespace. error: %v", err)
+	} else {
+		addonNameSpace = string(nsBytes)
+	}
+
+	klog.Infof("current Pod NS = %v", addonNameSpace)
+
+	return addonNameSpace
+}
+
 func TestGitopsAddon(t *testing.T) {
 	g := NewGomegaWithT(t)
 
@@ -121,6 +137,11 @@ func TestGitopsAddon(t *testing.T) {
 		HTTPS_PROXY:         HTTPS_PROXY,
 		NO_PROXY:            NO_PROXY,
 		ACTION:              ACTION,
+	}
+	podNS := GetPodNamespace()
+
+	if podNS > "" {
+		g.Expect(gitopsAddonReconciler.createNamespace(podNS)).NotTo(HaveOccurred())
 	}
 
 	g.Expect(gitopsAddonReconciler.createNamespace(GitopsOperatorNS)).NotTo(HaveOccurred())
@@ -155,15 +176,15 @@ func TestGitopsAddon(t *testing.T) {
 	g.Expect(errors.IsNotFound(err)).To(Equal(true))
 
 	// clean up temp files
-	if *configFlags.CAFile > "" {
+	if configFlags.CAFile != nil {
 		os.Remove(*configFlags.CAFile)
 	}
 
-	if *configFlags.CertFile > "" {
+	if configFlags.CertFile != nil {
 		os.Remove(*configFlags.CertFile)
 	}
 
-	if *configFlags.KeyFile > "" {
+	if configFlags.KeyFile != nil {
 		os.Remove(*configFlags.KeyFile)
 	}
 }
