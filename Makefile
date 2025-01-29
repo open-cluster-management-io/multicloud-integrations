@@ -101,9 +101,9 @@ endif
 .PHONY: ensure-kubebuilder-tools
 
 test: ensure-kubebuilder-tools
-	go test -timeout 300s -v ./pkg/... -coverprofile=coverage.out
-	go test -timeout 300s -v ./propagation-controller/... -coverprofile=prop_coverage.out
-	go test -timeout 300s -v ./gitopsaddon/... -coverprofile=prop_coverage.out
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test -timeout 300s -v ./pkg/...
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test -timeout 300s -v ./propagation-controller/...
+	KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS) go test -timeout 300s -v ./gitopsaddon/...
 
 .PHONY: manifests
 manifests: controller-gen
