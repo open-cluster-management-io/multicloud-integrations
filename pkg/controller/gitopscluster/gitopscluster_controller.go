@@ -863,6 +863,8 @@ func (r *ReconcileGitOpsCluster) GetManagedClusters(namespace string, placementr
 	return clusters, nil
 }
 
+const componentName = "application-manager"
+
 // AddManagedClustersToArgo copies a managed cluster secret from the managed cluster namespace to ArgoCD namespace
 func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 	gitOpsCluster *gitopsclusterV1beta1.GitOpsCluster, managedClusters []*spokeclusterv1.ManagedCluster,
@@ -882,6 +884,7 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 		klog.Infof("adding managed cluster %s to gitops namespace %s", managedCluster.Name, argoNamespace)
 
 		var newSecret *v1.Secret
+		msaExists := false
 
 		// Check if there are existing non-acm created cluster secrets
 		if len(nonAcmClusterSecrets[managedCluster.Name]) > 0 {
@@ -900,17 +903,52 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 			managedClusterSecret := &v1.Secret{}
 			err := r.Get(context.TODO(), managedClusterSecretKey, managedClusterSecret)
 
-			// managed cluster secret doesn't need to exist for pull model
-			if err != nil && !createBlankClusterSecrets {
-				klog.Error("failed to get managed cluster secret. err: ", err.Error())
-
-				errorOccurred = true
-				returnErr = err
-
-				continue
+			if err != nil {
+				// try with CreateMangedClusterSecretFromManagedServiceAccount generated name
+				secretName = managedCluster.Name + "-" + componentName + "-cluster-secret"
+				managedClusterSecretKey = types.NamespacedName{Name: secretName, Namespace: managedCluster.Name}
+				err = r.Get(context.TODO(), managedClusterSecretKey, managedClusterSecret)
 			}
 
-			newSecret, err = r.CreateManagedClusterSecretInArgo(argoNamespace, managedClusterSecret, managedCluster, createBlankClusterSecrets)
+			// managed cluster secret doesn't need to exist for pull model
+			if err != nil && !createBlankClusterSecrets {
+				// check for a ManagedServiceAccount to see if we need to create the secret
+				ManagedServiceAccount := &authv1beta1.ManagedServiceAccount{}
+				ManagedServiceAccountName := types.NamespacedName{Namespace: managedCluster.Name, Name: componentName}
+				err = r.Get(context.TODO(), ManagedServiceAccountName, ManagedServiceAccount)
+
+				if err == nil {
+					// get the secret
+					managedClusterSecretKey = types.NamespacedName{Name: componentName, Namespace: managedCluster.Name}
+					err = r.Get(context.TODO(), managedClusterSecretKey, managedClusterSecret)
+
+					if err == nil {
+						klog.Infof("Found ManagedServiceAccount %s created by managed cluster %s", componentName, managedCluster.Name)
+						msaExists = true
+					} else {
+						klog.Error("failed to find ManagedServiceAccount created secret application-manager")
+					}
+				} else {
+					klog.Error("failed to find ManagedServiceAccount CR in namespace " + managedCluster.Name)
+				}
+
+				if !msaExists {
+					klog.Error("failed to get managed cluster secret. err: ", err.Error())
+
+					errorOccurred = true
+					returnErr = err
+
+					continue
+				}
+			}
+
+			if msaExists {
+				newSecret, err = r.CreateMangedClusterSecretFromManagedServiceAccount(
+					argoNamespace, managedCluster, componentName)
+			} else {
+				newSecret, err = r.CreateManagedClusterSecretInArgo(
+					argoNamespace, managedClusterSecret, managedCluster, createBlankClusterSecrets)
+			}
 
 			if err != nil {
 				klog.Error("failed to create managed cluster secret. err: ", err.Error())

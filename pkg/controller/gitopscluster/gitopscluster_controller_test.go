@@ -190,6 +190,12 @@ var (
 		},
 	}
 
+	managedClusterNamespace3 = &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster3",
+		},
+	}
+
 	managedClusterNamespace10 = &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster10",
@@ -205,6 +211,12 @@ var (
 	argocdServerNamespace2 = &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "argocd2",
+		},
+	}
+
+	argocdServerNamespace3 = &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "argocd3",
 		},
 	}
 
@@ -346,6 +358,25 @@ var (
 		},
 	}
 
+	gitOpsCluster2 = &gitopsclusterV1beta1.GitOpsCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "git-ops-cluster-2",
+			Namespace: argocdServerNamespace3.Name,
+		},
+		Spec: gitopsclusterV1beta1.GitOpsClusterSpec{
+			ArgoServer: gitopsclusterV1beta1.ArgoServerSpec{
+				Cluster:       "local-cluster",
+				ArgoNamespace: "argocd3",
+			},
+			PlacementRef: &corev1.ObjectReference{
+				Kind:       "Placement",
+				APIVersion: "cluster.open-cluster-management.io/v1beta1",
+				Namespace:  argocdServerNamespace3.Name,
+				Name:       test1Pl.Name,
+			},
+		},
+	}
+
 	gitOpsClusterSecret3Key = types.NamespacedName{
 		Name:      "cluster1-cluster-secret",
 		Namespace: gitopsServerNamespace1.Name,
@@ -362,6 +393,28 @@ var (
 		},
 		Spec: corev1.ServiceSpec{
 			ClusterIP:       "10.0.0.10",
+			SessionAffinity: corev1.ServiceAffinityNone,
+			Type:            corev1.ServiceTypeClusterIP,
+			Ports: []corev1.ServicePort{
+				{
+					Port:       int32(443),
+					TargetPort: intstr.FromInt(443),
+				},
+			},
+		},
+	}
+
+	argoService3 = &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "argo-server",
+			Namespace: "argocd3",
+			Labels: map[string]string{
+				"app.kubernetes.io/part-of":   "argocd",
+				"app.kubernetes.io/component": "server",
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			ClusterIP:       "10.0.0.11",
 			SessionAffinity: corev1.ServiceAffinityNone,
 			Type:            corev1.ServiceTypeClusterIP,
 			Ports: []corev1.ServicePort{
@@ -482,6 +535,104 @@ func TestReconcileCreateSecretInArgo(t *testing.T) {
 		g2.Expect(updatedSecret.Labels).To(gomega.HaveKeyWithValue("test-label", "test-value"))
 		g2.Expect(updatedSecret.Labels).To(gomega.HaveKeyWithValue("test-label-2", "test-value-2"))
 	}, 60*time.Second, 1*time.Second).Should(gomega.Succeed())
+
+	// Testcase #2 Create ArgoCD cluster secret using ManagedServiceAccount
+	mcNS := managedClusterNamespace3
+
+	msa := &authv1beta1.ManagedServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "application-manager",
+			Namespace: mcNS.Name,
+		},
+		Spec: authv1beta1.ManagedServiceAccountSpec{
+			Rotation: authv1beta1.ManagedServiceAccountRotation{
+				Enabled: true,
+				Validity: metav1.Duration{
+					Duration: time.Hour * 168,
+				},
+			},
+		},
+		Status: authv1beta1.ManagedServiceAccountStatus{
+			TokenSecretRef: &authv1beta1.SecretRef{
+				Name:                 "application-manager",
+				LastRefreshTimestamp: metav1.NewTime(time.Time{}),
+			},
+		},
+	}
+
+	msaSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "application-manager",
+			Namespace: mcNS.Name,
+		},
+		StringData: map[string]string{
+			"token":  "token1",
+			"ca.crt": "caCrt1",
+		},
+	}
+
+	// Create namespaces
+	c.Create(context.TODO(), argocdServerNamespace3)
+	c.Create(context.TODO(), mcNS)
+
+	// Create placement
+	pm := test1Pl.DeepCopy()
+	pm.Namespace = argocdServerNamespace3.Name
+	pmDC := test1PlDc.DeepCopy()
+	pmDC.Namespace = argocdServerNamespace3.Name
+
+	c.Create(context.TODO(), pm)
+	c.Create(context.TODO(), pmDC)
+	c.Create(context.TODO(), argoService3)
+
+	// Update PlacementDecision status
+	c.Get(context.TODO(), client.ObjectKeyFromObject(pmDC), pmDC)
+	cd1 := &clusterv1beta1.ClusterDecision{
+		ClusterName: mcNS.Name,
+		Reason:      "OK",
+	}
+	pmDC.Status = clusterv1beta1.PlacementDecisionStatus{
+		Decisions: []clusterv1beta1.ClusterDecision{
+			*cd1,
+		},
+	}
+	c.Status().Update(context.TODO(), pmDC)
+
+	// Create managed cluster
+	mc1 := managedCluster1.DeepCopy()
+	mc1.Name = mcNS.Name
+	mc1.Spec.ManagedClusterClientConfigs = []clusterv1.ClientConfig{{URL: "https://local-cluster:6443", CABundle: []byte("abc")}}
+	c.Create(context.TODO(), mc1)
+	c.Create(context.TODO(), msa)
+	c.Get(context.TODO(), client.ObjectKeyFromObject(msa), msa)
+
+	// Update ManagedServiceAccount status
+	tokenRef := authv1beta1.SecretRef{Name: msaSecret.Name, LastRefreshTimestamp: metav1.Now()}
+	etime := metav1.NewTime(time.Now().Add(168 * time.Hour))
+	msa.Status = authv1beta1.ManagedServiceAccountStatus{
+		TokenSecretRef:      &tokenRef,
+		ExpirationTimestamp: &etime,
+	}
+	c.Status().Update(context.TODO(), msa)
+
+	// Create GitopsCluster
+	gc := gitOpsCluster2.DeepCopy()
+	c.Create(context.TODO(), gc)
+
+	c.Create(context.TODO(), msaSecret)
+
+	gitOpsMsaClusterSecretKey := types.NamespacedName{
+		Name:      fmt.Sprintf("%v-%v-cluster-secret", mc1.Name, msa.Name),
+		Namespace: argocdServerNamespace3.Name,
+	}
+	clusterSecret := &corev1.Secret{}
+
+	// Wait for controller to create the ArgoCD cluster secret
+	g.Eventually(func(g2 gomega.Gomega) {
+		err = c.Get(context.TODO(), gitOpsMsaClusterSecretKey, clusterSecret)
+
+		g2.Expect(err).To(gomega.BeNil())
+	}, 30*time.Second, 1*time.Second).Should(gomega.Succeed())
 }
 
 func TestReconcileNoSecretInInvalidArgoNamespace(t *testing.T) {
@@ -944,6 +1095,7 @@ func expectedRbacCreated(c client.Client, expectedDetails types.NamespacedName) 
 		timeout += 3
 	}
 }
+
 func TestReconcileDeleteOrphanSecret(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
