@@ -97,9 +97,6 @@ func (r *GitopsAddonReconciler) Start(ctx context.Context) error {
 		configFlags.CertFile = &r.Config.CertFile
 		configFlags.KeyFile = &r.Config.KeyFile
 
-		trueData := true
-		configFlags.Insecure = &trueData
-
 		r.houseKeeping(configFlags)
 	}, time.Duration(r.Interval)*time.Second, ctx.Done())
 
