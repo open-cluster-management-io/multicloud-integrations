@@ -1198,6 +1198,14 @@ func (r *ReconcileGitOpsCluster) CreateMangedClusterSecretFromManagedServiceAcco
 		},
 	}
 
+	// Collect labels to add to the secret
+	// Labels created above have precedence
+	for key, val := range managedCluster.Labels {
+		if _, ok := newSecret.Labels[key]; !ok {
+			newSecret.Labels[key] = val
+		}
+	}
+
 	return newSecret, nil
 }
 
