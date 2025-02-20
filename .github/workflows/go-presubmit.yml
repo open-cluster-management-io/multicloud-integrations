@@ -90,6 +90,8 @@ jobs:
           name: unit
           verbose: true
           fail_ci_if_error: true
+          version: >-  # revert https://github.com/codecov/codecov-cli/issues/641
+            v10.0.1
 
   go-sec-scan:
     name: go-sec-scan
