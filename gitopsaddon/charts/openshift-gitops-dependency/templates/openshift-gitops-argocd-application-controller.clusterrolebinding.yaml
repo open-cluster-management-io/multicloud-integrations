@@ -1,5 +1,3 @@
-{{- $existing := lookup "rbac.authorization.k8s.io/v1" "ClusterRoleBinding" "" "openshift-gitops-argocd-application-controller" }}
-{{- if not $existing }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -12,4 +10,3 @@ subjects:
 - kind: ServiceAccount
   name: openshift-gitops-argocd-application-controller
   namespace: {{ .Release.Namespace }}
-{{- end }}

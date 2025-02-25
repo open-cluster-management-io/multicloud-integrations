@@ -273,6 +273,7 @@ func (r *GitopsAddonReconciler) installOrUpgradeChart(configFlags *genericcliopt
 		// Release exists, do upgrade
 		helmUpgrade := action.NewUpgrade(actionConfig)
 		helmUpgrade.Namespace = namespace
+		helmUpgrade.Force = true // Enable force option for upgrades
 
 		_, err = helmUpgrade.Run(releaseName, chart, nil)
 
@@ -290,6 +291,7 @@ func (r *GitopsAddonReconciler) installOrUpgradeChart(configFlags *genericcliopt
 		helmInstall.Namespace = namespace
 		helmInstall.ReleaseName = releaseName
 		helmInstall.Replace = true
+		helmInstall.Force = true // Enable force option for installs
 
 		_, err = helmInstall.Run(chart, nil)
 
