@@ -27,17 +27,18 @@ spec:
                   serviceAccountName: gitops-addon
                   containers:
                     - name: gitops-addon
-                      image: quay.io/xiangjingli/multicloud-integrations:gitopsaddon-8
+                      image: quay.io/xiangjingli/multicloud-integrations:gitopsaddon-10
                       imagePullPolicy: IfNotPresent
                       securityContext:
-                        privileged: false
                         readOnlyRootFilesystem: true
                         allowPrivilegeEscalation: false
                         runAsNonRoot: true
-                        runAsUser: 1000
                         capabilities:
                           drop:
                           - ALL
+                      volumeMounts:
+                        - mountPath: /tmp
+                          name: tmp-volume
                       command:
                       - /usr/local/bin/gitopsaddon
                       - --leader-election-lease-duration=137s
@@ -58,6 +59,9 @@ spec:
                           value: '{{RECONCILE_SCOPE}}'
                         - name: ACTION
                           value: '{{ACTION}}'
+                  volumes:
+                    - name: tmp-volume
+                      emptyDir: {}
           - kind: ServiceAccount
             apiVersion: v1
             metadata:
