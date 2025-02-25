@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,8 +40,11 @@ func TestMain(m *testing.M) {
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "deploy", "crds"),
 			filepath.Join("..", "..", "..", "hack", "test", "crds"),
+			filepath.Join("..", "..", "..", "gitopsaddon", "charts", "dep-crds"),
 		},
 	}
+
+	apiextensionsv1.AddToScheme(scheme.Scheme)
 
 	var err error
 	if cfg, err = t.Start(); err != nil {

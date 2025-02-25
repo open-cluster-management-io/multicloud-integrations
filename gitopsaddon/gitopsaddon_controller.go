@@ -30,21 +30,25 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	k8syaml "sigs.k8s.io/yaml"
 )
 
 //nolint:all
 //go:embed charts/openshift-gitops-operator/**
 //go:embed charts/openshift-gitops-dependency/**
+//go:embed charts/dep-crds/**
 var ChartFS embed.FS
 
 // GitopsAddonReconciler reconciles a openshift gitops operator
@@ -149,6 +153,17 @@ func (r *GitopsAddonReconciler) installOrUpdateOpenshiftGitops(configFlags *gene
 		// Install/upgrade the openshift-gitops-operator helm chart
 		gitopsOperatorNsKey := types.NamespacedName{
 			Name: r.GitopsOperatorNS,
+		}
+
+		// install dependency CRDs if it doesn't exsit
+		err := r.applyCRDIfNotExists("gitopsservices", "pipelines.openshift.io/v1alpha1", "charts/dep-crds/gitopsservices.pipelines.openshift.io.crd.yaml")
+		if err != nil {
+			return
+		}
+
+		err = r.applyCRDIfNotExists("routes", "route.openshift.io/v1", "charts/dep-crds/routes.route.openshift.io.crd.yaml")
+		if err != nil {
+			return
 		}
 
 		if err := r.CreateUpdateNamespace(gitopsOperatorNsKey); err == nil {
@@ -800,4 +815,64 @@ func (r *GitopsAddonReconciler) unsetNamespace(nameSpaceKey types.NamespacedName
 		klog.Errorf("Failed to unset annotations from namespace: %v, err: %v", nameSpaceKey.Name, err)
 		return
 	}
+}
+
+// applyCRDIfNotExists checks if a CRD exists, and if not, apply it to the local cluster
+// crdName is the name of the CRD (e.g., "gitopsservices.pipelines.openshift.io").
+// yamlFilePath is the path to the CRD YAML file.
+func (r *GitopsAddonReconciler) applyCRDIfNotExists(resource, apiVersion, yamlFilePath string) error {
+	// Check if API resource exists
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(r.Config)
+	if err != nil {
+		return err
+	}
+
+	apiResourceList, err := discoveryClient.ServerPreferredResources()
+	if err != nil {
+		return err
+	}
+
+	// Check if the api resource exists
+	for _, apiResource := range apiResourceList {
+		if apiResource.GroupVersion == apiVersion {
+			for _, r := range apiResource.APIResources {
+				if r.Name == resource {
+					klog.Infof("API resource %s.%s exists", resource, apiVersion)
+					return nil
+				}
+			}
+		}
+	}
+
+	klog.Infof("API resource %s.%s not found, installing from %s", resource, apiVersion, yamlFilePath)
+
+	yamlFile, err := ChartFS.ReadFile(yamlFilePath)
+	if err != nil {
+		klog.Errorf("failed to read crd file %s, err: %v", yamlFilePath, err)
+		return err
+	}
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+
+	// the sigs.k8s.io/yaml has to be used in order to unmarhal the CRD yaml correctly.
+	// metav1.ObjectMeta uses embedded json struct tags but not yaml struct tags.
+	// The yaml.v3 package does not automatically recognize json struct tags
+	err = k8syaml.Unmarshal(yamlFile, crd)
+
+	if err != nil {
+		klog.Errorf("failed to unmarshal CRD %s, err: %v", yamlFilePath, err)
+		return err
+	}
+
+	klog.Infof("crd: %v", crd.ObjectMeta.Name)
+
+	err = r.Create(context.TODO(), crd)
+	if err != nil {
+		klog.Errorf("failed to create CRD %s, err: %v", yamlFilePath, err)
+		return err
+	}
+
+	klog.Infof("Successfully installed CRD %s", yamlFilePath)
+
+	return nil
 }
