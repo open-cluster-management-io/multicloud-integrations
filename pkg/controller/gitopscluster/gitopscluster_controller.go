@@ -1188,6 +1188,7 @@ func (r *ReconcileGitOpsCluster) CreateMangedClusterSecretFromManagedServiceAcco
 				"apps.open-cluster-management.io/acm-cluster":    "true",
 				"apps.open-cluster-management.io/cluster-name":   managedCluster.Name,
 				"apps.open-cluster-management.io/cluster-server": fmt.Sprintf("%.63s", strippedClusterURL),
+				"cluster.open-cluster-management.io/backup":      "",
 			},
 		},
 		Type: "Opaque",
