@@ -51,6 +51,7 @@ build:
 	@common/scripts/gobuild.sh build/_output/bin/multiclusterstatusaggregation ./cmd/multiclusterstatusaggregation
 	@common/scripts/gobuild.sh build/_output/bin/propagation ./cmd/propagation
 	@common/scripts/gobuild.sh build/_output/bin/gitopsaddon ./cmd/gitopsaddon
+	@common/scripts/gobuild.sh build/_output/bin/maestroaggregation ./cmd/maestroAggregation
 
 local:
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/gitopscluster ./cmd/gitopscluster
@@ -58,6 +59,7 @@ local:
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/multiclusterstatusaggregation ./cmd/multiclusterstatusaggregation
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/propagation ./cmd/propagation
 	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/gitopsaddon ./cmd/gitopsaddon
+	@GOOS=darwin common/scripts/gobuild.sh build/_output/bin/maestroaggregation ./cmd/maestroAggregation
 
 .PHONY: build-images
 

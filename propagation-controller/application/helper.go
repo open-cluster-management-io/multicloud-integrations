@@ -78,7 +78,7 @@ func containsValidManifestWorkHubApplicationAnnotations(manifestWork workv1.Mani
 // generateAppNamespace returns the intended namespace for the Application in the following priority
 // 1) Annotation specified custom namespace
 // 2) Application's namespace value
-// 3) Fallsback to 'argocd'
+// 3) Fallsback to the default 'openshift-gitops' namespace
 func generateAppNamespace(namespace string, annos map[string]string) string {
 	appNamespace := annos[AnnotationKeyOCMManagedClusterAppNamespace]
 	if len(appNamespace) > 0 {
@@ -90,10 +90,14 @@ func generateAppNamespace(namespace string, annos map[string]string) string {
 		return appNamespace
 	}
 
-	return "argocd"
+	return "openshift-gitops"
 }
 
-// generateManifestWorkName returns the ManifestWork name for a given application.
+// generateMaestroManifestWorkName returns the ManifestWork name for a given application.
+func generateMaestroManifestWorkName(appNs, appName string) string {
+	return appNs + "-" + appName
+}
+
 // It uses the Application name with the suffix of the first 5 characters of the UID
 func generateManifestWorkName(name string, uid types.UID) string {
 	return name + "-" + string(uid)[0:5]
@@ -245,10 +249,19 @@ func generateManifestWork(name, namespace string, app *unstructured.Unstructured
 						Name:      application.GetName(),
 					},
 					FeedbackRules: []workv1.FeedbackRule{
-						{Type: workv1.JSONPathsType, JsonPaths: []workv1.JsonPath{{Name: "healthStatus", Path: ".status.health.status"}}},
-						{Type: workv1.JSONPathsType, JsonPaths: []workv1.JsonPath{{Name: "syncStatus", Path: ".status.sync.status"}}},
+						{
+							Type: workv1.JSONPathsType,
+							JsonPaths: []workv1.JsonPath{
+								{
+									Name: "status",
+									Path: ".status",
+								},
+							},
+						},
 					},
-					UpdateStrategy: &workv1.UpdateStrategy{Type: workv1.UpdateStrategyTypeUpdate},
+					UpdateStrategy: &workv1.UpdateStrategy{
+						Type: workv1.UpdateStrategyTypeServerSideApply,
+					},
 				},
 			},
 		},

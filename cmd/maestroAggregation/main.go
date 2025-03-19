@@ -26,58 +26,60 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
+	"k8s.io/klog"
+	"open-cluster-management.io/multicloud-integrations/maestroAggregation"
+	"open-cluster-management.io/multicloud-integrations/pkg/utils"
 
-	clientsetx "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	"k8s.io/client-go/rest"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
-	workv1 "open-cluster-management.io/api/work/v1"
-	appsetreportV1alpha1 "open-cluster-management.io/multicloud-integrations/pkg/apis/appsetreport/v1alpha1"
-	"open-cluster-management.io/multicloud-integrations/pkg/utils"
-	"open-cluster-management.io/multicloud-integrations/propagation-controller/application"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
-// PropagationCMDOptions for command line flag parsing
-type PropagationCMDOptions struct {
+// MaestroAggregationOptions for command line flag parsing
+type GitopsAddonAgentOptions struct {
 	MetricsAddr                 string
 	LeaderElectionLeaseDuration time.Duration
 	LeaderElectionRenewDeadline time.Duration
 	LeaderElectionRetryPeriod   time.Duration
-	MaxConcurrentReconciles     int
+	SyncInterval                int
 }
 
-var options = PropagationCMDOptions{
+var options = GitopsAddonAgentOptions{
 	MetricsAddr:                 "",
 	LeaderElectionLeaseDuration: 137 * time.Second,
 	LeaderElectionRenewDeadline: 107 * time.Second,
 	LeaderElectionRetryPeriod:   26 * time.Second,
-	MaxConcurrentReconciles:     1,
+	SyncInterval:                60,
 }
 
 var (
 	scheme      = runtime.NewScheme()
 	setupLog    = ctrl.Log.WithName("setup")
 	metricsHost = "0.0.0.0"
-	metricsPort = 8386
+	metricsPort = 8388
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
-	utilruntime.Must(workv1.AddToScheme(scheme))
-	utilruntime.Must(appsetreportV1alpha1.AddToScheme(scheme))
 }
 
 func main() {
-	var enableLeaderElection bool
+	enableLeaderElection := false
+
+	if _, err := rest.InClusterConfig(); err == nil {
+		klog.Info("LeaderElection enabled as running in a cluster")
+
+		enableLeaderElection = true
+	} else {
+		klog.Info("LeaderElection disabled as not running in a cluster")
+	}
 
 	flag.StringVar(
 		&options.MetricsAddr,
@@ -115,10 +117,10 @@ func main() {
 	)
 
 	flag.IntVar(
-		&options.MaxConcurrentReconciles,
-		"max-concurrent-reconciles",
-		options.MaxConcurrentReconciles,
-		"The maxium concurrent reconciles the controller can run.",
+		&options.SyncInterval,
+		"sync-interval",
+		options.SyncInterval,
+		"The interval of housekeeping in seconds.",
 	)
 
 	opts := zap.Options{
@@ -133,7 +135,8 @@ func main() {
 		"leaseDuration", options.LeaderElectionLeaseDuration,
 		"renewDeadline", options.LeaderElectionRenewDeadline,
 		"retryPeriod", options.LeaderElectionRetryPeriod,
-		"maxConcurrentReconciles", options.MaxConcurrentReconciles)
+		"syncInterval", options.SyncInterval,
+	)
 
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -142,7 +145,7 @@ func main() {
 			BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
 		},
 		LeaderElection:          enableLeaderElection,
-		LeaderElectionID:        "multicloud-operators-propagation-leader.open-cluster-management.io",
+		LeaderElectionID:        "maestro-aggregation-leader.open-cluster-management.io",
 		LeaderElectionNamespace: "kube-system",
 		LeaseDuration:           &options.LeaderElectionLeaseDuration,
 		RenewDeadline:           &options.LeaderElectionRenewDeadline,
@@ -150,27 +153,8 @@ func main() {
 		NewClient:               NewNonCachingClient,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		setupLog.Error(err, "unable to start gitops addon agent")
 		os.Exit(1)
-	}
-
-	// create the clientset for the CRDs
-	crdx, err := clientsetx.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		setupLog.Error(err, "unable to build clientsetx for Argo CD Application CRD check")
-		os.Exit(1)
-	}
-
-	for {
-		// Only start the controller if the Application CRD exists.
-		_, err = crdx.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), "applications.argoproj.io", v1.GetOptions{})
-		if err == nil {
-			setupLog.Info("found CRD applications.argoproj.io")
-			break
-		} else {
-			setupLog.Error(err, "failed to find CRD applications.argoproj.io, checking again after 10s")
-			time.Sleep(10 * time.Second)
-		}
 	}
 
 	maestroSeverAddr, err := utils.GetServiceURL(mgr.GetClient(), "maestro", "maestro", "http")
@@ -197,16 +181,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&application.ApplicationReconciler{
-		Client:            mgr.GetClient(),
-		Scheme:            mgr.GetScheme(),
-		MaestroWorkClient: maestroWorkClient,
-	}).SetupWithManager(mgr, options.MaxConcurrentReconciles); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Application")
+	if err = maestroAggregation.SetupWithManager(mgr, options.SyncInterval, maestroWorkClient); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "gitopsaddon")
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager with unstructured Application")
+	setupLog.Info("starting maestro aggregation controller")
 
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")

@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,8 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
-	workv1 "open-cluster-management.io/api/work/v1"
 )
 
 const (
@@ -64,7 +66,8 @@ const (
 // ApplicationReconciler reconciles a Application object
 type ApplicationReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme            *runtime.Scheme
+	MaestroWorkClient workv1client.WorkV1Interface
 }
 
 //+kubebuilder:rbac:groups=argoproj.io,resources=applications,verbs=get;list;watch;update;patch
@@ -148,9 +151,13 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		Kind:    "Application",
 	})
 
+	// if the propagated app is deleted directly, we just return without deleting its associated Manifestworks from maestro
+	// In this case, we just got the application name and namespace,
+	// We hardly parse the managed cluster name even though it is contained in the application name
 	if err := r.Get(ctx, req.NamespacedName, application); err != nil {
-		log.Error(err, "unable to fetch Application")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		klog.Infof("unable to fetch Application, err: %v", err)
+
+		return ctrl.Result{}, err
 	}
 
 	managedClusterName := application.GetAnnotations()[AnnotationKeyOCMManagedCluster]
@@ -161,9 +168,11 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, nil
 	}
 
-	mwName := generateManifestWorkName(application.GetName(), application.GetUID())
+	mwName := generateMaestroManifestWorkName(application.GetNamespace(), application.GetName())
 
-	// the Application is being deleted, find the ManifestWork and delete that as well
+	// If the appset is deleted, the Application is being deleted with specifying deletionTimestamp, in this case
+	// 1. delete its ManifestWork and delete that as well
+	// 2. the app will be deleted via cleaning up its finalizers
 	if application.GetDeletionTimestamp() != nil {
 		// remove finalizer from Application but do not 'commit' yet
 		if len(application.GetFinalizers()) != 0 {
@@ -174,26 +183,12 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 					i--
 				}
 			}
+
 			application.SetFinalizers(f)
 		}
 
-		// delete the ManifestWork associated with this Application
-		var work workv1.ManifestWork
-		err := r.Get(ctx, types.NamespacedName{Name: mwName, Namespace: managedClusterName}, &work)
-
-		if errors.IsNotFound(err) {
-			// already deleted ManifestWork, commit the Application finalizer removal
-			if err = r.Update(ctx, application); err != nil {
-				log.Error(err, "unable to update Application")
-				return ctrl.Result{}, err
-			}
-		} else if err != nil {
-			log.Error(err, "unable to fetch ManifestWork")
-			return ctrl.Result{}, err
-		}
-
-		if err := r.Delete(ctx, &work); err != nil {
-			log.Error(err, "unable to delete ManifestWork")
+		err := r.deleteManifestworkFromMaestro(ctx, managedClusterName, mwName)
+		if err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -214,7 +209,7 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	log.Info("generating ManifestWork for Application")
-	w, err := generateManifestWork(mwName, managedClusterName, application)
+	newWork, err := generateManifestWork(mwName, managedClusterName, application)
 
 	if err != nil {
 		log.Error(err, "unable to generating ManifestWork")
@@ -222,25 +217,33 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	// create or update the ManifestWork depends if it already exists or not
-	var mw workv1.ManifestWork
-	err = r.Get(ctx, types.NamespacedName{Name: mwName, Namespace: managedClusterName}, &mw)
+	work, err := r.MaestroWorkClient.ManifestWorks(managedClusterName).Get(ctx, mwName, metav1.GetOptions{})
 
 	if errors.IsNotFound(err) {
-		err = r.Client.Create(ctx, w)
-		if err != nil {
-			log.Error(err, "unable to create ManifestWork")
-			return ctrl.Result{}, err
-		}
-	} else if err == nil {
-		mw.Annotations = w.Annotations
-		mw.Labels = w.Labels
-		mw.Spec = w.Spec
-		err = r.Client.Update(ctx, &mw)
+		_, err = r.MaestroWorkClient.ManifestWorks(managedClusterName).Create(ctx, newWork, metav1.CreateOptions{})
 
 		if err != nil {
-			log.Error(err, "unable to update ManifestWork")
+			log.Error(err, "unable to create ManifestWork into Maestro")
 			return ctrl.Result{}, err
 		}
+
+		klog.Infof("manifestwork created in maestro. cluster: %v, manifestwork: %v, sourceID: app-work-client",
+			managedClusterName, mwName)
+	} else if err == nil {
+		patchData, err := grpcsource.ToWorkPatch(work, newWork)
+		if err != nil {
+			log.Error(err, "unable to get the patch data")
+			return ctrl.Result{}, err
+		}
+		_, err = r.MaestroWorkClient.ManifestWorks(managedClusterName).Patch(ctx, mwName, types.MergePatchType, patchData, metav1.PatchOptions{})
+
+		if err != nil {
+			log.Error(err, "unable to update ManifestWork to Maestro")
+			return ctrl.Result{}, err
+		}
+
+		klog.Infof("manifestwork updated to maestro. cluster: %v, manifestwork: %v, sourceID: app-work-client",
+			managedClusterName, mwName)
 	} else {
 		log.Error(err, "unable to fetch ManifestWork")
 		return ctrl.Result{}, err
@@ -249,4 +252,27 @@ func (r *ApplicationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	log.Info("done reconciling Application")
 
 	return ctrl.Result{}, nil
+}
+
+func (r *ApplicationReconciler) deleteManifestworkFromMaestro(ctx context.Context, managedClusterName, mwName string) error {
+	_, err := r.MaestroWorkClient.ManifestWorks(managedClusterName).Get(ctx, mwName, metav1.GetOptions{})
+
+	if errors.IsNotFound(err) {
+		klog.Infof("can'find the manifestwork in the Maestro, manifestwork: %v, cluster: %v", mwName, managedClusterName)
+		return nil
+	} else if err != nil {
+		klog.Errorf("failed to fetch ManifestWork from Maestro, err: %v", err)
+		return err
+	}
+
+	err = r.MaestroWorkClient.ManifestWorks(managedClusterName).Delete(ctx, mwName, metav1.DeleteOptions{})
+
+	if err != nil {
+		klog.Errorf("unable to delete ManifestWork from Maestro, err: %v", err)
+		return err
+	}
+
+	klog.Infof("manifestwork deleted from maestro. cluster: %v, manifestwork: %v, sourceID: app-work-client", managedClusterName, mwName)
+
+	return nil
 }

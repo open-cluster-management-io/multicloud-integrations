@@ -1,4 +1,4 @@
-FROM registry.ci.openshift.org/stolostron/builder:go1.22-linux AS builder
+FROM registry.ci.openshift.org/stolostron/builder:go1.23-linux AS builder
 
 WORKDIR /go/src/github.com/open-cluster-management-io/multicloud-integrations
 COPY . .
@@ -19,6 +19,7 @@ COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-int
 COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/multiclusterstatusaggregation /usr/local/bin/multiclusterstatusaggregation
 COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/propagation /usr/local/bin/propagation
 COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/gitopsaddon /usr/local/bin/gitopsaddon
+COPY --from=builder /go/src/github.com/open-cluster-management-io/multicloud-integrations/build/_output/bin/maestroaggregation /usr/local/bin/maestroaggregation
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
