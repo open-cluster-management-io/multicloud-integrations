@@ -575,7 +575,7 @@ func (r *ReconcilePullModelAggregation) cleanupOrphanReports() error {
 		appSet := &missingAppset[m]
 		errOccured := false
 
-		if appSet.Statuses.ClusterConditions != nil && len(appSet.Statuses.ClusterConditions) > 0 {
+		if len(appSet.Statuses.ClusterConditions) > 0 {
 			for _, clusterCondition := range appSet.Statuses.ClusterConditions {
 				nsn := strings.Split(clusterCondition.App, "/")
 
