@@ -17,7 +17,7 @@ require (
 	k8s.io/client-go v0.30.2
 	k8s.io/klog v1.0.0
 	k8s.io/kubectl v0.29.0
-	open-cluster-management.io/api v0.15.0
+	open-cluster-management.io/api v0.16.1
 	open-cluster-management.io/managed-serviceaccount v0.7.0
 	sigs.k8s.io/controller-runtime v0.18.4
 )

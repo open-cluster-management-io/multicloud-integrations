@@ -135,18 +135,18 @@ else
     echo "Propagation FAILED: manifestwork does not contain appSet hash"
     exit 1
 fi
-if kubectl -n cluster1 get manifestwork -o yaml | grep RollingSync; then
-    echo "Propagation: manifestwork contains operation RollingSync"
-else
-    echo "Propagation FAILED: manifestwork does not contain operation RollingSync"
-    exit 1
-fi
 kubectl config use-context kind-cluster1
 if kubectl -n argocd get app cluster1-guestbook-app | grep Synced | grep Healthy; then
     echo "Propagation: managed cluster application cluster1-guestbook-app created, synced and healthy"
 else
     echo "Propagation FAILED: managed application cluster1-guestbook-app not created, synced and healthy"
     kubectl -n argocd get app cluster1-guestbook-app -o yaml
+    exit 1
+fi
+if kubectl -n argocd get app cluster1-guestbook-app -o yaml | grep RollingSync; then
+    echo "Propagation: application contains operation RollingSync"
+else
+    echo "Propagation FAILED: application does not contain operation RollingSync"
     exit 1
 fi
 if kubectl get namespace guestbook; then
