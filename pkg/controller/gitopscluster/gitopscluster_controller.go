@@ -944,7 +944,7 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 
 			if msaExists {
 				newSecret, err = r.CreateMangedClusterSecretFromManagedServiceAccount(
-					argoNamespace, managedCluster, componentName)
+					argoNamespace, managedCluster, componentName, false)
 			} else {
 				newSecret, err = r.CreateManagedClusterSecretInArgo(
 					argoNamespace, managedClusterSecret, managedCluster, createBlankClusterSecrets)
@@ -961,7 +961,7 @@ func (r *ReconcileGitOpsCluster) AddManagedClustersToArgo(
 		} else {
 			klog.Infof("create cluster secret using managed service account: %s/%s", managedCluster.Name, gitOpsCluster.Spec.ManagedServiceAccountRef)
 
-			newSecret, err = r.CreateMangedClusterSecretFromManagedServiceAccount(argoNamespace, managedCluster, gitOpsCluster.Spec.ManagedServiceAccountRef)
+			newSecret, err = r.CreateMangedClusterSecretFromManagedServiceAccount(argoNamespace, managedCluster, gitOpsCluster.Spec.ManagedServiceAccountRef, true)
 			if err != nil {
 				klog.Error("failed to create managed cluster secret. err: ", err.Error())
 
@@ -1110,7 +1110,7 @@ func (r *ReconcileGitOpsCluster) CreateManagedClusterSecretInArgo(argoNamespace 
 }
 
 func (r *ReconcileGitOpsCluster) CreateMangedClusterSecretFromManagedServiceAccount(argoNamespace string,
-	managedCluster *spokeclusterv1.ManagedCluster, managedServiceAccountRef string) (*v1.Secret, error) {
+	managedCluster *spokeclusterv1.ManagedCluster, managedServiceAccountRef string, enableTLS bool) (*v1.Secret, error) {
 	// Find managedserviceaccount in the managed cluster namespace
 	account := &authv1beta1.ManagedServiceAccount{}
 	if err := r.Get(context.TODO(), types.NamespacedName{Name: managedServiceAccountRef, Namespace: managedCluster.Name}, account); err != nil {
@@ -1137,13 +1137,20 @@ func (r *ReconcileGitOpsCluster) CreateMangedClusterSecretFromManagedServiceAcco
 
 	clusterSecretName := fmt.Sprintf("%v-%v-cluster-secret", managedCluster.Name, managedServiceAccountRef)
 
+	tlsClientConfig := map[string]interface{}{
+		"insecure": true,
+	}
 	caCrt := base64.StdEncoding.EncodeToString(tokenSecret.Data["ca.crt"])
-	config := map[string]interface{}{
-		"bearerToken": string(tokenSecret.Data["token"]),
-		"tlsClientConfig": map[string]interface{}{
+	if enableTLS {
+		tlsClientConfig = map[string]interface{}{
 			"insecure": false,
 			"caData":   caCrt,
-		},
+		}
+	}
+
+	config := map[string]interface{}{
+		"bearerToken":     string(tokenSecret.Data["token"]),
+		"tlsClientConfig": tlsClientConfig,
 	}
 
 	encodedConfig, err := json.Marshal(config)
