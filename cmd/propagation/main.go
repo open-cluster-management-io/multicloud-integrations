@@ -58,7 +58,7 @@ var options = PropagationCMDOptions{
 	LeaderElectionLeaseDuration: 137 * time.Second,
 	LeaderElectionRenewDeadline: 107 * time.Second,
 	LeaderElectionRetryPeriod:   26 * time.Second,
-	MaxConcurrentReconciles:     10,
+	MaxConcurrentReconciles:     1,
 }
 
 var (
