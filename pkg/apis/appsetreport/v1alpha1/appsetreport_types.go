@@ -59,11 +59,14 @@ type Condition struct {
 
 // ClusterCondition defines all the error/warning conditions in one cluster for an application.
 type ClusterCondition struct {
-	Cluster      string      `json:"cluster,omitempty"`
-	SyncStatus   string      `json:"syncStatus,omitempty"`
-	HealthStatus string      `json:"healthStatus,omitempty"`
-	App          string      `json:"app,omitempty"`
-	Conditions   []Condition `json:"conditions,omitempty"`
+	Cluster                 string      `json:"cluster,omitempty"`
+	SyncStatus              string      `json:"syncStatus,omitempty"`
+	HealthStatus            string      `json:"healthStatus,omitempty"`
+	OperationStateStartedAt string      `json:"operationStateStartedAt,omitempty"`
+	OperationStatePhase     string      `json:"operationStatePhase,omitempty"`
+	SyncRevision            string      `json:"syncRevision,omitempty"`
+	App                     string      `json:"app,omitempty"`
+	Conditions              []Condition `json:"conditions,omitempty"`
 }
 
 // AppConditions defines all the error/warning conditions in all clusters where a particular application is deployed.

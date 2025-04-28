@@ -62,9 +62,12 @@ type Cluster struct {
 
 // Value for the appSetClusterStatusMap
 type OverallStatus struct {
-	HealthStatus string
-	SyncStatus   string
-	App          string
+	HealthStatus            string
+	SyncStatus              string
+	OperationStateStartedAt string
+	OperationStatePhase     string
+	SyncRevision            string
+	App                     string
 }
 
 // AppSetClusterResourceSorter sorts appsetreport resources by name
@@ -187,6 +190,9 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 
 		for _, manifestWork := range appSetClusterList.Items {
 			healthStatus, syncStatus := "Unknown", "Unknown"
+			operationStatePhase := ""
+			operationStateStartedAt := ""
+			syncRevision := ""
 
 			appsetNs, appsetName := ParseNamespacedName(manifestWork.Annotations[propagation.AnnotationKeyAppSet])
 
@@ -203,13 +209,22 @@ func (r *ReconcilePullModelAggregation) generateAggregation() error {
 						healthStatus = *statuses.Value.String
 					} else if statuses.Name == "syncStatus" {
 						syncStatus = *statuses.Value.String
+					} else if statuses.Name == "operationStatePhase" {
+						operationStatePhase = *statuses.Value.String
+					} else if statuses.Name == "operationStateStartedAt" {
+						operationStateStartedAt = *statuses.Value.String
+					} else if statuses.Name == "syncRevision" {
+						syncRevision = *statuses.Value.String
 					}
 				}
 			}
 
 			appSetClusterStatusMap[appSetKey][clusterKey] = OverallStatus{
-				HealthStatus: healthStatus,
-				SyncStatus:   syncStatus,
+				HealthStatus:            healthStatus,
+				SyncStatus:              syncStatus,
+				OperationStateStartedAt: operationStateStartedAt,
+				OperationStatePhase:     operationStatePhase,
+				SyncRevision:            syncRevision,
 				App: appsetNs + "/" + manifestWork.Annotations[propagation.AnnotationKeyHubApplicationName] +
 					"/" + manifestWork.Namespace + "/" + manifestWork.Name,
 			}
@@ -346,10 +361,13 @@ func (r *ReconcilePullModelAggregation) generateSummary(appSetClusterStatusMap m
 		klog.V(1).Info("Cluster: ", cluster)
 		// generate the cluster condition list per this appset
 		appSetClusterConditionsMap[cluster.clusterName] = appsetreportV1alpha1.ClusterCondition{
-			Cluster:      cluster.clusterName,
-			SyncStatus:   appSetClusterStatusMap[appset][cluster].SyncStatus,
-			HealthStatus: appSetClusterStatusMap[appset][cluster].HealthStatus,
-			App:          appSetClusterStatusMap[appset][cluster].App,
+			Cluster:                 cluster.clusterName,
+			SyncStatus:              appSetClusterStatusMap[appset][cluster].SyncStatus,
+			HealthStatus:            appSetClusterStatusMap[appset][cluster].HealthStatus,
+			OperationStateStartedAt: appSetClusterStatusMap[appset][cluster].OperationStateStartedAt,
+			OperationStatePhase:     appSetClusterStatusMap[appset][cluster].OperationStatePhase,
+			SyncRevision:            appSetClusterStatusMap[appset][cluster].SyncRevision,
+			App:                     appSetClusterStatusMap[appset][cluster].App,
 		}
 
 		// Calculate the summary while we're here.

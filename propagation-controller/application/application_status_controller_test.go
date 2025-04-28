@@ -81,10 +81,13 @@ var _ = Describe("Application Status controller", func() {
 			report1.Statuses = appsetreportV1alpha1.AppConditions{
 				ClusterConditions: []appsetreportV1alpha1.ClusterCondition{
 					{
-						SyncStatus:   "Synced",
-						HealthStatus: "Healthy",
-						App:          appNamespace + "/" + appName,
-						Cluster:      "cluster1",
+						SyncStatus:              "Synced",
+						HealthStatus:            "Healthy",
+						OperationStateStartedAt: "2025-04-24T19:53:38Z",
+						OperationStatePhase:     "Succeeded",
+						SyncRevision:            "4773b9f1f8fd425f84174c338012771c4e9a989c",
+						App:                     appNamespace + "/" + appName,
+						Cluster:                 "cluster1",
 					},
 				},
 			}
@@ -98,8 +101,14 @@ var _ = Describe("Application Status controller", func() {
 
 				syncStatus, _, _ := unstructured.NestedString(app1.Object, "status", "sync", "status")
 				healthStatus, _, _ := unstructured.NestedString(app1.Object, "status", "health", "status")
+				operationStateStartedAtStatus, _, _ := unstructured.NestedString(app1.Object, "status", "operationState", "startedAt")
+				operationStatePhaseStatus, _, _ := unstructured.NestedString(app1.Object, "status", "operationState", "phase")
+				syncRevisionStatus, _, _ := unstructured.NestedString(app1.Object, "status", "sync", "revision")
 
-				return syncStatus == "Synced" && healthStatus == "Healthy"
+				return syncStatus == "Synced" && healthStatus == "Healthy" &&
+					operationStateStartedAtStatus == "2025-04-24T19:53:38Z" &&
+					operationStatePhaseStatus == "Succeeded" &&
+					syncRevisionStatus == "4773b9f1f8fd425f84174c338012771c4e9a989c"
 			}).Should(BeTrue())
 		})
 	})

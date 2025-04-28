@@ -12,7 +12,8 @@ kubectl apply -f deploy/crds/
 kubectl apply -f hack/test/crds/0000_00_authentication.open-cluster-management.io_managedserviceaccounts.yaml
 kubectl apply -f deploy/controller/
 
-sleep 120
+kubectl -n open-cluster-management rollout status deployment multicloud-integrations-gitops --timeout=120s
+kubectl -n open-cluster-management rollout status deployment multicloud-integrations --timeout=120s
 
 echo "TEST Propgation controller startup (expecting error)"
 POD_NAME=$(kubectl -n open-cluster-management get deploy multicloud-integrations -o yaml  | grep ReplicaSet | grep successful | cut -d'"' -f2)
@@ -28,7 +29,11 @@ fi
 echo "SETUP install Argo CD to Managed cluster"
 kubectl config use-context kind-cluster1
 kubectl create namespace argocd
-kubectl apply -n argocd --force -f hack/test/e2e/argo-cd-install.yaml 
+kubectl apply -n argocd --force -f hack/test/e2e/argo-cd-install.yaml
+kubectl -n argocd scale deployment/argocd-applicationset-controller --replicas 0
+kubectl -n argocd scale deployment/argocd-server --replicas 0
+kubectl -n argocd scale deployment/argocd-dex-server --replicas 0
+kubectl -n argocd scale deployment/argocd-notifications-controller --replicas 0
 
 echo "SETUP install Argo CD to Hub cluster"
 kubectl config use-context kind-hub
@@ -44,8 +49,7 @@ kubectl -n argocd scale statefulset/argocd-application-controller --replicas 0
 # enable progressive sync
 kubectl -n argocd patch configmap argocd-cmd-params-cm --type merge -p '{"data":{"applicationsetcontroller.enable.progressive.syncs":"true"}}'
 kubectl -n argocd rollout restart deployment argocd-applicationset-controller
-
-sleep 60s
+kubectl -n argocd rollout status deployment argocd-applicationset-controller --timeout=60s
 
 echo "TEST Propgation controller startup"
 if kubectl -n open-cluster-management logs $POD_NAME argocd-pull-integration-controller-manager | grep "Starting Controller" | grep "Application"; then
@@ -159,5 +163,20 @@ if kubectl -n guestbook get deploy guestbook-ui; then
     echo "Propagation: guestbook-ui deploy created"
 else
     echo "Propagation FAILED: guestbook-ui deploy not created"
+    exit 1
+fi
+kubectl config use-context kind-hub
+if [[ -n $(kubectl -n argocd get app cluster1-guestbook-app -o jsonpath='{.status.operationState.phase}') ]]; then
+    echo "Propagation: hub cluster application cluster1-guestbook-app phase is not empty"
+else
+    echo "Propagation FAILED: hub cluster application cluster1-guestbook-app phase is empty"
+    kubectl -n argocd get app cluster1-guestbook-app -o yaml
+    exit 1
+fi
+if [[ -n $(kubectl -n argocd get app cluster1-guestbook-app -o jsonpath='{.status.sync.revision}') ]]; then
+    echo "Propagation: hub cluster application cluster1-guestbook-app revision not empty"
+else
+    echo "Propagation FAILED: hub cluster application cluster1-guestbook-app revision is empty"
+    kubectl -n argocd get app cluster1-guestbook-app -o yaml
     exit 1
 fi

@@ -22,12 +22,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -116,6 +118,30 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				return ctrl.Result{}, err
 			}
 
+			if cc.HealthStatus != "" {
+				if cc.HealthStatus == "Healthy" {
+					// If the health status is Healthy then simulate Progressing first then set to Healthy for ApplicationSet controller
+					if err := unstructured.SetNestedField(application.Object, "Progressing", "status", "health", "status"); err != nil {
+						log.Error(err, "unable to set healthStatus in Application status")
+						return ctrl.Result{}, err
+					}
+
+					log.Info("updating Application health status to Progressing")
+
+					if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+						return r.Client.Update(ctx, application)
+					}); err != nil {
+						log.Error(err, "unable to update Application")
+						return ctrl.Result{}, err
+					}
+				}
+
+				if err := unstructured.SetNestedField(newStatus, cc.HealthStatus, "health", "status"); err != nil {
+					log.Error(err, "unable to set health")
+					return ctrl.Result{}, err
+				}
+			}
+
 			if cc.SyncStatus != "" {
 				if err := unstructured.SetNestedField(newStatus, cc.SyncStatus, "sync", "status"); err != nil {
 					log.Error(err, "unable to set sync")
@@ -123,9 +149,31 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 			}
 
-			if cc.HealthStatus != "" {
-				if err := unstructured.SetNestedField(newStatus, cc.HealthStatus, "health", "status"); err != nil {
-					log.Error(err, "unable to set health")
+			if cc.OperationStatePhase != "" {
+				if err := unstructured.SetNestedField(newStatus, cc.OperationStatePhase, "operationState", "phase"); err != nil {
+					log.Error(err, "unable to set OperationStatePhase")
+					return ctrl.Result{}, err
+				}
+
+				if cc.OperationStateStartedAt == "" {
+					cc.OperationStateStartedAt = time.Now().UTC().Format(time.RFC3339)
+				}
+
+				if err = unstructured.SetNestedField(newStatus, cc.OperationStateStartedAt, "operationState", "startedAt"); err != nil {
+					log.Error(err, "unable to set OperationStateStartedAt")
+					return ctrl.Result{}, err
+				}
+
+				if err = unstructured.SetNestedField(newStatus, map[string]interface{}{}, "operationState", "operation"); err != nil {
+					// Application required field, set it to empty object
+					log.Error(err, "unable to set operation")
+					return ctrl.Result{}, err
+				}
+			}
+
+			if cc.SyncRevision != "" {
+				if err := unstructured.SetNestedField(newStatus, cc.SyncRevision, "sync", "revision"); err != nil {
+					log.Error(err, "unable to set SyncRevision")
 					return ctrl.Result{}, err
 				}
 			}
@@ -172,8 +220,9 @@ func (r *ApplicationStatusReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					return ctrl.Result{}, err
 				}
 
-				err = r.Client.Update(ctx, application)
-				if err != nil {
+				if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+					return r.Client.Update(ctx, application)
+				}); err != nil {
 					log.Error(err, "unable to update Application")
 					return ctrl.Result{}, err
 				}

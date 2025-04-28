@@ -72,6 +72,12 @@ spec:
                       type: string
                     syncStatus:
                       type: string
+                    operationStateStartedAt:
+                      type: string
+                    operationStatePhase:
+                      type: string
+                    syncRevision:
+                      type: string
                   type: object
                 type: array
               resources:
