@@ -177,7 +177,8 @@ func (r *GitOpsSyncResource) syncResources() error {
 
 		apps, related, err := r.getArgoAppsFromSearch(queryManagedClustersStr, "", "")
 		if err != nil {
-			return err
+			klog.Info(err.Error())
+			continue
 		}
 
 		for _, app := range apps {
@@ -190,8 +191,8 @@ func (r *GitOpsSyncResource) syncResources() error {
 
 				// Skip application that don't belong to an appset
 				if hostingAppsetName == nil {
-					klog.V(1).Infof("skip application %v/%v on cluster %v, it does not belong to an appset", itemmap["namespace"], itemmap["name"], managedClusterName)
-					return nil
+					klog.Infof("skip application %v/%v on cluster %v, it does not belong to an appset", itemmap["namespace"], itemmap["name"], managedClusterName)
+					continue
 				}
 
 				appsetNsn := strings.Split(hostingAppsetName.(string), "/")
@@ -199,7 +200,7 @@ func (r *GitOpsSyncResource) syncResources() error {
 					err := fmt.Errorf("_hostingResource is not in the correct format: %v", hostingAppsetName)
 					klog.Info(err.Error())
 
-					return err
+					continue
 				}
 
 				reportKey := appsetNsn[1] + "_" + appsetNsn[2]
@@ -230,7 +231,7 @@ func (r *GitOpsSyncResource) syncResources() error {
 					report.Statuses.Resources = append(relatedResources, unhealthyResources...)
 				}
 
-				klog.V(1).Infof("resources for app (%v/%v): %v", itemmap["namespace"], itemmap["name"], report.Statuses.Resources)
+				klog.Infof("resources for app (%v/%v): %v", itemmap["namespace"], itemmap["name"], report.Statuses.Resources)
 			}
 		}
 	}
