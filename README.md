@@ -1,3 +1,15 @@
+## IMPORTANT
+
+This repo will be archived prior to the release of version
+[OCM v1.0.0](https://github.com/open-cluster-management-io/ocm/issues/832). 
+
+Going forward, the
+[Argo CD Pull Integration repo](https://github.com/open-cluster-management-io/argocd-pull-integration)
+will serve as the primary source for OCM and Argo CD pull model integration efforts.
+For additional Argo CD integration solutions, please refer to the 
+[OCM solutions](https://github.com/open-cluster-management-io/ocm/tree/main/solutions)
+folder.
+
 ## Overview
 
 ------
